@@ -116,8 +116,7 @@ const running = new Map<string, { controller: AbortController; work: Promise<voi
 const MAX_SILENT_TOOL_CONTINUATIONS = 3;
 /** A message's text, without a copied tool-step list the reply opens with. */
 function replyText(message: unknown): string {
-  const text = assistantText(message);
-  return messageHasToolCall(message) ? text : replyWithoutCopiedToolSteps(text);
+  return replyWithoutCopiedToolSteps(assistantText(message));
 }
 // Sent in the user's role, so marked as automated: otherwise models read it as the user
 // telling them never to stop, and keep going instead of asking.
