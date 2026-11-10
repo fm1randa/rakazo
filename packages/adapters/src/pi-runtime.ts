@@ -125,7 +125,7 @@ export const SILENT_TOOL_CONTINUATION_PROMPT = automated(
 );
 // Sent after a reply that was only a copied tool-step list; no tool ran because of it.
 export const COPIED_TOOL_LIST_CONTINUATION_PROMPT = automated(
-  "Your last turn was only a list of tool calls written as text, so no tools ran from it. Do the work by calling the tools you need, or reply to the user directly. Do not write that list.",
+  "Your last turn was only a list of tool calls written as text, so no tools ran from it. Do the work by calling the tools you need, then finish as you were asked, staying silent if you were told to when there is nothing to report. Do not write that list.",
 );
 // Sent after a reply was cut off by a dropped connection; the cut text is the previous turn.
 export const CUT_REPLY_CONTINUATION_PROMPT = automated(

@@ -255,8 +255,8 @@ export function blocksToAgentHistoryText(
   return blocks
     .map((block) => {
       if (block.kind === "text") return fromBot ? withoutCopiedToolSteps(block.text) : block.text;
-      // The tools a reply used, and what the bot wrote before each, are kept out of its text;
-      // without them a later turn cannot tell what it already did.
+      // Without the tools a reply used, and what the bot wrote before each, a later turn cannot
+      // tell what it already did.
       if (block.kind === "steps") return toolStepsHistoryText(block.steps);
       if (block.kind === "chart") return `[chart: ${block.name}]`;
       if (block.kind === "app") return `[app: ${block.server} showed ${block.tool}]`;
