@@ -36,9 +36,7 @@ function replyContext(source: ReplyMessage, threadId: string): string | undefine
   const targetPayload = excerpt
     ? { quotedText: truncateReplyQuote(excerpt) }
     : (() => {
-        const content = blocksToAgentHistoryText(messageBlocks(target), {
-          toolSteps: true,
-        });
+        const content = blocksToAgentHistoryText(messageBlocks(target));
         return {
           content: content.slice(0, 20_000),
           ...(content.length > 20_000 ? { truncated: true } : {}),

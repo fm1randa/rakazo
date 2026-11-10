@@ -23,7 +23,9 @@ import {
   MISSING_TOOL_FINAL_RESPONSE_ERROR,
   MODEL_IMAGE_INPUT_ERROR,
   MODEL_OUTPUT_CUT_ERROR,
+  mayOpenWithCopiedToolSteps,
   modelFallbackFailure,
+  replyWithoutCopiedToolSteps,
 } from "@rakazo/core";
 import { getLogger } from "@rakazo/logging";
 import {
@@ -112,6 +114,11 @@ const running = new Map<string, { controller: AbortController; work: Promise<voi
 // instead of taking another assistant turn. A bounded internal follow-up keeps
 // that provider quirk from making a long task look complete after one step.
 const MAX_SILENT_TOOL_CONTINUATIONS = 3;
+/** A message's text, without a copied tool-step list the reply opens with. */
+function replyText(message: unknown): string {
+  const text = assistantText(message);
+  return messageHasToolCall(message) ? text : replyWithoutCopiedToolSteps(text);
+}
 // Sent in the user's role, so marked as automated: otherwise models read it as the user
 // telling them never to stop, and keep going instead of asking.
 export const SILENT_TOOL_CONTINUATION_PROMPT = automated(
@@ -778,6 +785,14 @@ export class PiAgentRuntime implements AgentRuntime {
 
         let streamed = "";
         let currentMessageStreamed = "";
+        // A message opening with a copied tool-step list is held until it can be cleaned.
+        let holdingToolList = false;
+        const releaseToolList = () => {
+          if (!holdingToolList) return;
+          holdingToolList = false;
+          streamed += currentMessageStreamed;
+          queue.push({ type: "text", text: currentMessageStreamed });
+        };
         let toolCalls = 0;
         let toolActivityShowing = false;
         let silentToolContinuations = 0;
@@ -844,6 +859,7 @@ export class PiAgentRuntime implements AgentRuntime {
           if (event.type === "message_start" && event.message.role === "assistant") {
             host.modelResponses = (host.modelResponses ?? 0) + 1;
             currentMessageStreamed = "";
+            holdingToolList = false;
             // A later assistant turn supersedes a terminating result's carried reply,
             // except the empty aborted message of a turn the result itself ended.
             if (event.message.stopReason !== "aborted") terminatedReply = undefined;
@@ -870,6 +886,10 @@ export class PiAgentRuntime implements AgentRuntime {
                   Math.min(joinCutReply.tail.length, MAX_CONTINUATION_OVERLAP) +
                   MAX_CONTINUATION_MARKER;
                 if (joinCutReply.held.length > decidable) releaseJoin();
+              } else if (mayOpenWithCopiedToolSteps(currentMessageStreamed)) {
+                holdingToolList = true;
+              } else if (holdingToolList) {
+                releaseToolList();
               } else {
                 streamed += delta;
                 queue.push({ type: "text", text: delta });
@@ -877,10 +897,19 @@ export class PiAgentRuntime implements AgentRuntime {
             }
           }
           if (event.type === "turn_end") {
-            const messageText =
-              event.message.role === "assistant" ? assistantText(event.message) : "";
+            const messageText = event.message.role === "assistant" ? replyText(event.message) : "";
             const hasToolCalls = messageHasToolCall(event.message);
             const hasToolResults = event.toolResults.length > 0;
+            // A reply that is only a copied step list isn't an answer, so the work isn't finished.
+            if (
+              !messageText &&
+              assistantText(event.message) &&
+              !hasToolCalls &&
+              !toolWorkPendingFinal
+            ) {
+              toolWorkPendingFinal = true;
+              streamedBeforePendingFinal = streamed.length;
+            }
 
             // Text in a turn that also contains a tool call is narration, not a final
             // response. Keep the run alive until a later text-only turn answers the user.
@@ -918,7 +947,12 @@ export class PiAgentRuntime implements AgentRuntime {
             }
           }
           if (event.type === "message_end" && event.message.role === "assistant") {
-            const text = assistantText(event.message);
+            const text = replyText(event.message);
+            if (holdingToolList) {
+              // Held text goes out as the finished message, without its copied list.
+              holdingToolList = false;
+              currentMessageStreamed = "";
+            }
             // The completed text can hold more of a continuation than arrived as deltas, so its
             // repeat of the cut reply is judged on all of it.
             if (
@@ -1187,7 +1221,7 @@ export class PiAgentRuntime implements AgentRuntime {
           terminalMessage?.role === "assistant" &&
           !messageHasToolCall(terminalMessage)
         ) {
-          const completedText = assistantText(terminalMessage);
+          const completedText = replyText(terminalMessage);
           const terminalText =
             joinDropped && completedText.startsWith(joinDropped)
               ? completedText.slice(joinDropped.length)
@@ -1235,7 +1269,7 @@ export class PiAgentRuntime implements AgentRuntime {
         } else if (!streamed.trim() && !host.pausePending) {
           streamed = "";
           const lastMessage = agent.state.messages.at(-1);
-          const fallback = lastMessage?.role === "assistant" ? assistantText(lastMessage) : "";
+          const fallback = lastMessage?.role === "assistant" ? replyText(lastMessage) : "";
           if (fallback.trim()) {
             queue.push({ type: "text", text: fallback });
             streamed = fallback;

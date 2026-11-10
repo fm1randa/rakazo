@@ -9,6 +9,7 @@ const fakeAgentState = vi.hoisted(() => ({
     | "answer-then-stop"
     | "two-boundaries"
     | "silent-continuation"
+    | "copied-list"
     | "subagent-limit"
     | "two-subagents"
     | "background-subagent"
@@ -48,6 +49,7 @@ const fakeAgentState = vi.hoisted(() => ({
   preparedMessages: [] as unknown[],
   steeredMessages: [] as unknown[],
   followUpMessages: [] as unknown[],
+  copiedListProse: "",
   initialMessages: [] as unknown[],
   promptInputs: [] as string[],
   promptImages: [] as unknown[][],
@@ -178,6 +180,34 @@ vi.mock("@earendil-works/pi-agent-core", () => ({
           },
           toolResults: [{ toolCallId: "call-1", result }],
         });
+        return;
+      }
+
+      if (fakeAgentState.mode === "copied-list") {
+        const emit = async (event: Record<string, unknown>) => {
+          this.emit(event);
+          await new Promise((resolve) => setImmediate(resolve));
+        };
+        const list = `[tool calls this reply made]\n- List files (succeeded)${fakeAgentState.copiedListProse}`;
+        for (const delta of [list.slice(0, 12), list.slice(12)]) {
+          await emit({
+            type: "message_update",
+            assistantMessageEvent: { type: "text_delta", delta },
+          });
+        }
+        const copied = { role: "assistant", content: [{ type: "text", text: list }] };
+        await emit({ type: "message_end", message: copied });
+        await emit({ type: "turn_end", message: copied, toolResults: [] });
+        if (fakeAgentState.followUpMessages.length > 0) {
+          const text = "The final answer.";
+          const final = { role: "assistant", content: [{ type: "text", text }] };
+          await emit({
+            type: "message_update",
+            assistantMessageEvent: { type: "text_delta", delta: text },
+          });
+          await emit({ type: "message_end", message: final });
+          await emit({ type: "turn_end", message: final, toolResults: [] });
+        }
         return;
       }
 
@@ -581,6 +611,7 @@ describe("Pi connector tool dispatch", () => {
     fakeAgentState.preparedMessages = [];
     fakeAgentState.steeredMessages = [];
     fakeAgentState.followUpMessages = [];
+    fakeAgentState.copiedListProse = "";
     fakeAgentState.emitFinalAfterFollowUp = true;
     fakeAgentState.terminalMessage = undefined;
     fakeAgentState.emitFinalOnCompletedMessage = false;
@@ -1255,6 +1286,69 @@ describe("Pi connector tool dispatch", () => {
       text: "I finished the work.",
     });
     expect(events.at(-1)).toEqual({ type: "done" });
+  });
+
+  it("keeps working instead of posting a copied tool-step list as the reply", async () => {
+    fakeAgentState.mode = "copied-list";
+    const runtime = new PiAgentRuntime();
+    const events: Array<{ type: string; text?: string }> = [];
+    for await (const event of runtime.run(
+      {
+        botId: "b",
+        threadId: "t",
+        runId: "copied-list",
+        prompt: "check the files",
+        instructions: "",
+        history: [],
+        tools: [destinationTool],
+        model: { provider: "test", id: "dispatch-test-model" },
+        executeTool: vi.fn(async () => ({ ok: true })),
+      },
+      {
+        operationId: "copied-list",
+        traceId: "copied-list",
+        spaceId: "w",
+        userId: "u",
+        signal: new AbortController().signal,
+      },
+    )) {
+      events.push(event as { type: string; text?: string });
+    }
+    expect(fakeAgentState.followUpMessages).toHaveLength(1);
+    expect(JSON.stringify(events)).not.toContain("tool calls this reply made");
+    expect(events.at(-1)).toEqual({ type: "done", text: "The final answer." });
+  });
+
+  it("posts a reply without the copied tool-step list it opens with", async () => {
+    fakeAgentState.mode = "copied-list";
+    fakeAgentState.copiedListProse = "\n\nThe files are all there.";
+    const runtime = new PiAgentRuntime();
+    const events: Array<{ type: string; text?: string }> = [];
+    for await (const event of runtime.run(
+      {
+        botId: "b",
+        threadId: "t",
+        runId: "copied-list",
+        prompt: "check the files",
+        instructions: "",
+        history: [],
+        tools: [destinationTool],
+        model: { provider: "test", id: "dispatch-test-model" },
+        executeTool: vi.fn(async () => ({ ok: true })),
+      },
+      {
+        operationId: "copied-list",
+        traceId: "copied-list",
+        spaceId: "w",
+        userId: "u",
+        signal: new AbortController().signal,
+      },
+    )) {
+      events.push(event as { type: string; text?: string });
+    }
+    expect(fakeAgentState.followUpMessages).toHaveLength(0);
+    expect(JSON.stringify(events)).not.toContain("tool calls this reply made");
+    expect(events.at(-1)).toEqual({ type: "done", text: "The files are all there." });
   });
 
   it("continues after narration is followed by a silent tool result turn", async () => {

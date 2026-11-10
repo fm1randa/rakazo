@@ -213,8 +213,7 @@ it("includes the server-derived first line and author role for an id-only reply"
 });
 
 describe("earlier turns' tool work", () => {
-  // Replayed in the bot's own turn, the step list was copied as whole replies instead of tool calls.
-  it("keeps tool steps, and step lists a reply copied, out of the bot's replayed turn", () => {
+  it("replays what an earlier reply did on the computer, without a list it copied", () => {
     const install = messageToAgentHistoryText({
       id: "bot-install",
       threadId: "thread-1",
@@ -241,9 +240,10 @@ describe("earlier turns' tool work", () => {
     );
     expect(replayed).toMatchObject({ role: "assistant" });
     const text = JSON.stringify(replayed);
+    expect(text).toContain("Shell ×2: Installing the password manager extension.");
+    expect(text).toContain("Computer screenshot");
     expect(text).toContain("Done.");
-    expect(text).not.toContain("tool calls this reply made");
-    expect(text).not.toContain("Shell");
+    expect(text).not.toContain("Shell (succeeded)");
   });
 
   it("quotes a copied step list as the message someone replied to", () => {

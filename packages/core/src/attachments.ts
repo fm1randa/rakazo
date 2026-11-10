@@ -216,6 +216,19 @@ export function withoutCopiedToolSteps(text: string): string {
   return text.replace(COPIED_TOOL_STEPS, "").trim();
 }
 
+/** A reply that opens with a copied step list, without those lists; others are left unchanged. */
+export function replyWithoutCopiedToolSteps(text: string): string {
+  return text.trimStart().startsWith(TOOL_STEPS_MARKER) ? withoutCopiedToolSteps(text) : text;
+}
+
+/** Whether streamed text so far opens with a copied step list, or still could. */
+export function mayOpenWithCopiedToolSteps(partial: string): boolean {
+  const text = partial.trimStart();
+  return text.length <= TOOL_STEPS_MARKER.length
+    ? TOOL_STEPS_MARKER.startsWith(text)
+    : text.startsWith(TOOL_STEPS_MARKER);
+}
+
 const TOOL_STEP_OUTCOMES = ["succeeded", "failed", "stopped"] as const;
 
 /** "succeeded" when every call ended the same way, else "2 succeeded, 1 failed". */
@@ -232,19 +245,19 @@ function toolStepOutcomeText(step: { count: number; outcomes?: unknown }): strin
 }
 
 /**
- * A message as history text. Tool steps are left out unless asked for: replayed inside the bot's
- * own turns, the step list reads as something it writes, and models copied it as their whole reply
- * instead of calling tools. Summaries and quoted messages can still include them. `fromBot` also
- * drops a list a bot wrote into its reply; a person's text is always kept as written.
+ * A message as history text. `fromBot` drops a step list a bot wrote into its own reply, so a
+ * copy doesn't teach the next turn; a person's text is always kept as written.
  */
 export function blocksToAgentHistoryText(
   blocks: MessageBlock[],
-  { toolSteps = false, fromBot = false }: { toolSteps?: boolean; fromBot?: boolean } = {},
+  { fromBot = false }: { fromBot?: boolean } = {},
 ): string {
   return blocks
     .map((block) => {
       if (block.kind === "text") return fromBot ? withoutCopiedToolSteps(block.text) : block.text;
-      if (block.kind === "steps") return toolSteps ? toolStepsHistoryText(block.steps) : "";
+      // The tools a reply used, and what the bot wrote before each, are kept out of its text;
+      // without them a later turn cannot tell what it already did.
+      if (block.kind === "steps") return toolStepsHistoryText(block.steps);
       if (block.kind === "chart") return `[chart: ${block.name}]`;
       if (block.kind === "app") return `[app: ${block.server} showed ${block.tool}]`;
       if (block.kind === "image") return `[image: ${block.name}]`;
