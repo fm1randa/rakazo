@@ -1315,6 +1315,9 @@ describe("Pi connector tool dispatch", () => {
       events.push(event as { type: string; text?: string });
     }
     expect(fakeAgentState.followUpMessages).toHaveLength(1);
+    expect(fakeAgentState.followUpMessages[0]).toEqual(
+      expect.objectContaining({ content: expect.stringContaining("no tools ran") }),
+    );
     expect(JSON.stringify(events)).not.toContain("tool calls this reply made");
     expect(events.at(-1)).toEqual({ type: "done", text: "The final answer." });
   });

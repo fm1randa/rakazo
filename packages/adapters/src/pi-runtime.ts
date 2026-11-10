@@ -123,6 +123,10 @@ function replyText(message: unknown): string {
 export const SILENT_TOOL_CONTINUATION_PROMPT = automated(
   "Your last turn ended right after a tool result, without a reply. Continue the original task from the latest tool result. If you need information or a decision from the user, ask them instead of guessing; otherwise use any remaining tools needed, then give the user the final answer.",
 );
+// Sent after a reply that was only a copied tool-step list; no tool ran because of it.
+export const COPIED_TOOL_LIST_CONTINUATION_PROMPT = automated(
+  "Your last turn was only a list of tool calls written as text, so no tools ran from it. Do the work by calling the tools you need, or reply to the user directly. Do not write that list.",
+);
 // Sent after a reply was cut off by a dropped connection; the cut text is the previous turn.
 export const CUT_REPLY_CONTINUATION_PROMPT = automated(
   "Your previous reply was cut off by a connection error. Continue exactly where it stopped, mid-word if needed, without repeating anything.",
@@ -937,9 +941,11 @@ export class PiAgentRuntime implements AgentRuntime {
                 silentToolContinuations += 1;
                 agent.followUp({
                   role: "user",
-                  content: request.allowSilentEmpty
-                    ? SILENT_ALLOWED_TOOL_CONTINUATION_PROMPT
-                    : SILENT_TOOL_CONTINUATION_PROMPT,
+                  content: assistantText(event.message).trim()
+                    ? COPIED_TOOL_LIST_CONTINUATION_PROMPT
+                    : request.allowSilentEmpty
+                      ? SILENT_ALLOWED_TOOL_CONTINUATION_PROMPT
+                      : SILENT_TOOL_CONTINUATION_PROMPT,
                   timestamp: Date.now(),
                 });
               }
