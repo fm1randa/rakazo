@@ -223,6 +223,11 @@ export const MessageBlock = z.discriminatedUnion("kind", [
    * block is the bot's full prompt, so chats, previews and search leave the message out.
    */
   z.object({ kind: z.literal("delivery") }),
+  /**
+   * Local compat: the retired marker older local builds stored on a delivery that started
+   * routines. Read only, so those messages still load; hidden like `delivery`.
+   */
+  z.object({ kind: z.literal("inbound_routine") }),
   z.object({
     kind: z.literal("progress"),
     text: z.string(),

@@ -31,10 +31,16 @@ export type UserVisibleMessagesOptions = {
   includeDelegatedReplyText?: boolean;
 };
 
-/** What woke the bot (see the `delivery` block): its prompt, never shown as a message. */
+/**
+ * What woke the bot (see the `delivery` block): its prompt, never shown as a message. Messages
+ * from older local builds carry the retired `inbound_routine` marker instead.
+ */
 export function isDeliveryMessage(blocks: readonly unknown[]): boolean {
   // Also reads stored JSON, whose elements are not checked.
-  return blocks.some((block) => (block as { kind?: unknown } | null)?.kind === "delivery");
+  return blocks.some((block) => {
+    const kind = (block as { kind?: unknown } | null)?.kind;
+    return kind === "delivery" || kind === "inbound_routine";
+  });
 }
 
 export function isPeerReceiptBlocks(blocks: readonly MessageBlock[]): boolean {

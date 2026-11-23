@@ -28,7 +28,7 @@ const UNINDEXED_SCAN_LIMIT = 200;
  * A delivery is the bot's prompt, hidden in chat, so it is never a result. Filtered before
  * paging so deliveries can't fill the candidate pages; `kind` stays plaintext when encrypted.
  */
-const NOT_DELIVERY = Prisma.sql`NOT (m.blocks @> ${JSON.stringify([{ kind: "delivery" }])}::jsonb)`;
+const NOT_DELIVERY = Prisma.sql`NOT (m.blocks @> ${JSON.stringify([{ kind: "delivery" }])}::jsonb OR m.blocks @> ${JSON.stringify([{ kind: "inbound_routine" }])}::jsonb)`;
 
 interface MessageMatch {
   sql: Prisma.Sql;
