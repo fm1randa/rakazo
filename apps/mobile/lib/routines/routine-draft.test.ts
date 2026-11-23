@@ -15,6 +15,7 @@ const routine: Routine = {
   inChat: false,
   webhookEnabled: false,
   githubEnabled: false,
+  trustDeliveries: false,
   messageProvider: null,
   emailSenders: null,
   modelProvider: null,

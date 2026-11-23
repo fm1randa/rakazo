@@ -12065,6 +12065,10 @@ msgstr "Testes têm menos horas para evitar abusos."
 msgid "Troubleshoot"
 msgstr "Solucionar problemas"
 
+#: apps/web/src/pages/routines/RoutineEditor.tsx
+msgid "Trust deliveries"
+msgstr "Confiar nas entregas"
+
 #: apps/mobile/app/(settings)/profile.tsx
 #: apps/web/src/components/settings/TrustedLinkSitesSettings.tsx
 msgid "Trusted sites"
@@ -12500,6 +12504,10 @@ msgstr "Par do usuário"
 #: apps/web/src/components/vault/VaultItemEditor.tsx
 msgid "Username"
 msgstr "Nome de usuário"
+
+#: apps/web/src/pages/routines/RoutineEditor.tsx
+msgid "Uses your approval settings. Only for senders you control."
+msgstr "Usa suas configurações de aprovação. Só para remetentes que você controla."
 
 #: apps/mobile/lib/cards/import-setup.ts
 #: apps/web/src/pages/shell/bots/import-status.ts

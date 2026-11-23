@@ -146,6 +146,7 @@ const routine = (id: string, name: string, partial: Partial<Routine> = {}): Rout
   inChat: false,
   webhookEnabled: false,
   githubEnabled: false,
+  trustDeliveries: false,
   messageProvider: null,
   emailSenders: null,
   modelProvider: null,

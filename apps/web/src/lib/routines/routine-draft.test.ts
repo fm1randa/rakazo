@@ -96,6 +96,7 @@ it("reads whether a routine runs in the chat", () => {
     inChat: true,
     webhookEnabled: false,
     githubEnabled: false,
+    trustDeliveries: false,
     messageProvider: null,
     emailSenders: null,
     modelProvider: null,
