@@ -1637,6 +1637,8 @@ model Routine {
   computerPromptHash String?
   webhookEnabled Boolean   @default(false)
   githubEnabled  Boolean   @default(false)
+  /// Deliveries that start only routines trusting them run as if the owner had sent them.
+  trustDeliveries Boolean  @default(false)
   messageProvider String?
   /// Email trigger: whose authenticated mail starts it ("owner" or "domain"); null without one.
   emailSenders   String?

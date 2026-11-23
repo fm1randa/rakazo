@@ -282,6 +282,9 @@ export function useRoutineEditor({
                   : {}),
                 webhookEnabled: routineDraft.webhookEnabled,
                 githubEnabled: routineDraft.githubEnabled,
+                ...(routineDraft.trustDeliveries !== targetRoutine.trustDeliveries
+                  ? { trustDeliveries: routineDraft.trustDeliveries }
+                  : {}),
                 messageProvider: routineDraft.messageProvider,
                 emailSenders: routineDraft.emailSenders,
                 watch,
@@ -313,6 +316,7 @@ export function useRoutineEditor({
                 notify: true,
                 webhookEnabled: routineDraft.webhookEnabled,
                 githubEnabled: routineDraft.githubEnabled,
+                trustDeliveries: routineDraft.trustDeliveries,
                 messageProvider: routineDraft.messageProvider,
                 emailSenders: routineDraft.emailSenders,
                 watch,

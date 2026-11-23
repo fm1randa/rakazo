@@ -52,6 +52,7 @@ export const routinesRpc = {
             useComputer: z.boolean().optional(),
             webhookEnabled: z.boolean().optional(),
             githubEnabled: z.boolean().optional(),
+            trustDeliveries: z.boolean().optional(),
             messageProvider: z
               .string()
               .min(1)

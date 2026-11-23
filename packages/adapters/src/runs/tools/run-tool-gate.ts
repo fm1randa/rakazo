@@ -294,6 +294,10 @@ export async function gateToolCall(
   const { purchase, cardUse, loginUse } = request;
   // Saved logins that ask first require the owner on every use, like saved cards.
   const paying = Boolean(purchase) || Boolean(cardUse) || Boolean(loginUse);
+  // A delivery the owner trusts runs as theirs (see the run's ownerStartedRun), so only an
+  // untrusted one keeps the webhook rules.
+  const unattendedTrigger =
+    run.trigger === "webhook" && ctx.source.ownerStartedRun ? "user" : run.trigger;
   const requiresApprovalByDefault =
     request.heldForApproval ||
     paying ||
@@ -305,7 +309,7 @@ export async function gateToolCall(
       approvalToolNames.some(
         (toolName) =>
           toolRequiresApproval(toolName, viaConnector, declaredReadOnlyFor(toolName)) ||
-          (!viaConnector && outsideRunToolRequiresApproval(run.trigger, toolName)),
+          (!viaConnector && outsideRunToolRequiresApproval(unattendedTrigger, toolName)),
       ));
   // A reviewed call still fails closed when its review errors, and keeps its approval key.
   const gated = requiresApprovalByDefault || reviewOnly;

@@ -5,6 +5,7 @@ import {
   BACKGROUND_HELPER_TRIGGER,
   chatAppConnectNote,
   HELPER_RESULT_TRIGGER,
+  inboundDeliveryTrusted,
   isCallClientNonce,
   isOwnerStartedRun,
   messagingChannelPrivacyBlock,
@@ -415,8 +416,15 @@ export async function resolveRunCapabilities(
     resolveCheckpointModel,
     storedTurnCheckpoint,
   } = parts.saved;
-  const { bot, messagingChannelRun, nonOwnerChatRun, conversationRun, conversationThread, origin } =
-    parts.records;
+  const {
+    bot,
+    messagingChannelRun,
+    nonOwnerChatRun,
+    conversationRun,
+    conversationThread,
+    origin,
+    task,
+  } = parts.records;
   const { cloudAgentPromise } = parts.connected;
   const { people } = parts.thread;
   const { credential, resolved, runModelId, runModelProvider, scripted, thinkingLevel } =
@@ -520,11 +528,22 @@ export async function resolveRunCapabilities(
   // Calls carry no schema flag: the sending client encodes them in the clientNonce.
   const sourceClientNonce = sourceMessage?.clientNonce ?? null;
   // A follow-up can be queued by a bot (group handoffs); only the user's own counts.
-  const ownerStartedRun = isOwnerStartedRun(
-    conversationRun.trigger,
-    (origin?.sourceMessage ?? sourceMessage)?.role === "user",
-    nonOwnerChatRun,
-  );
+  // A delivery whose every routine the owner marked trusted runs as theirs: their approval
+  // settings apply, as they would to a message they sent.
+  const ownerStartedRun =
+    isOwnerStartedRun(
+      conversationRun.trigger,
+      (origin?.sourceMessage ?? sourceMessage)?.role === "user",
+      nonOwnerChatRun,
+    ) ||
+    (run.trigger === "webhook" &&
+      inboundDeliveryTrusted(
+        task.prompt,
+        await deps.prisma.routine.findMany({
+          where: { botId: run.botId, spaceId: run.spaceId, userId: run.userId },
+          select: { name: true, prompt: true, trustDeliveries: true },
+        }),
+      ));
   // A hang-up run has no source message: its own nonce carries the call it closes.
   const callEndRun = run.trigger === "call_end";
   const callClientNonceForRun = callEndRun ? run.clientNonce : sourceClientNonce;

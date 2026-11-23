@@ -369,6 +369,7 @@ export function routinesRoutes(ctx: RouterContext) {
               ...(computerPromptHash === undefined ? {} : { computerPromptHash }),
               webhookEnabled: input.webhookEnabled,
               githubEnabled: input.githubEnabled,
+              trustDeliveries: input.trustDeliveries,
               messageProvider: input.messageProvider,
               emailSenders: input.emailSenders,
               ...(touchesModel ? { modelProvider, modelId, thinkingLevel } : {}),

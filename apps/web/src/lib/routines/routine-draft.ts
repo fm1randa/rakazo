@@ -24,6 +24,7 @@ export function routineNeedsOneShotArm(
 export type RoutineDraftState = RoutineDraft & {
   webhookEnabled: boolean;
   githubEnabled: boolean;
+  trustDeliveries: boolean;
   messageProvider: string | null;
   runAtLocal: string;
   /** Empty runs this routine on the bot's model. */
@@ -135,6 +136,7 @@ export function emptyRoutineDraftState(): RoutineDraftState {
     ...emptyRoutineDraft(),
     webhookEnabled: false,
     githubEnabled: false,
+    trustDeliveries: false,
     messageProvider: null,
     runAtLocal: "",
     modelKey: "",
@@ -150,6 +152,7 @@ export function draftStateFromRoutine(routine: Routine): RoutineDraftState {
     ...draftFromRoutine(routine),
     webhookEnabled: routine.webhookEnabled,
     githubEnabled: routine.githubEnabled,
+    trustDeliveries: routine.trustDeliveries,
     messageProvider: routine.messageProvider,
     runAtLocal: routineNeedsOneShotArm(routine, routine.crons) ? defaultArmRunAtLocal() : "",
     modelKey:

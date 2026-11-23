@@ -110,7 +110,7 @@ function fixture({
   fleetManagement = false,
   fleetBots = [] as { id: string; name: string; thread?: { id: string } }[],
   secondResource = false,
-  routines = [] as { name: string; prompt: string }[],
+  routines = [] as { name: string; prompt: string; trustDeliveries?: boolean }[],
   connectedApps = [] as string[],
   userDevices,
   botUserId = "user-1",
@@ -150,7 +150,7 @@ function fixture({
     computerPromptHash: string | null;
   }>;
   connectedApps?: string[];
-  routines?: { name: string; prompt: string }[];
+  routines?: { name: string; prompt: string; trustDeliveries?: boolean }[];
   /** Adds `demo_get_other`, a read on a separate installed resource with the same name prefix. */
   secondResource?: boolean;
   /** The switch as the run starts; `liveBot` is what a later read sees. */
@@ -1117,6 +1117,48 @@ describe("connector read-only metadata and approval enforcement", () => {
       await f.run();
       expect(f.pauseRunForInput).toHaveBeenCalledOnce();
       expect(f.commit).not.toHaveBeenCalled();
+    });
+
+    describe("a delivery whose routines trust it", () => {
+      const delivery = (trustDeliveries: boolean[]) => ({
+        routines: trustDeliveries.map((trusted, index) => ({
+          name: `Alerts ${index}`,
+          prompt: "Handle it.",
+          trustDeliveries: trusted,
+        })),
+        prompt: `${trustDeliveries
+          .map((_, index) => `Run routine "Alerts ${index}":\nHandle it.\n`)
+          .join("")}\nInbound webhook payload:\n{"event":"done"}`,
+      });
+
+      it("saves without asking, as the owner's own message would", async () => {
+        const f = fixture({
+          name: "remember",
+          builtin: true,
+          trigger: "webhook",
+          ...delivery([true]),
+        });
+        f.setCalls([{ args: { content: "Prefers short replies." }, executionId: "call-1" }]);
+        await f.run();
+        expect(f.pauseRunForInput).not.toHaveBeenCalled();
+        expect(f.commit).toHaveBeenCalledOnce();
+      });
+
+      it.each([[[false]], [[true, false]]])(
+        "still asks when any routine it starts does not trust it (%j)",
+        async (trusted) => {
+          const f = fixture({
+            name: "remember",
+            builtin: true,
+            trigger: "webhook",
+            ...delivery(trusted),
+          });
+          f.setCalls([{ args: { content: "Prefers short replies." }, executionId: "call-1" }]);
+          await f.run();
+          expect(f.pauseRunForInput).toHaveBeenCalledOnce();
+          expect(f.commit).not.toHaveBeenCalled();
+        },
+      );
     });
 
     it("saves without asking in an owner's run resumed after a pause in Ask", async () => {

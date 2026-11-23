@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { inboundRoutineBlock, inboundRoutinePrompts } from "./inbound-routine.js";
+import {
+  inboundDeliveryTrusted,
+  inboundRoutineBlock,
+  inboundRoutinePrompts,
+} from "./inbound-routine.js";
 
 const digest = { name: "Digest", prompt: "Summarize https://status.example.com\n" };
 const triage = { name: "Triage", prompt: "Label the issue" };
@@ -40,5 +44,19 @@ describe("inboundRoutinePrompts", () => {
     ].join("\n");
     expect(inboundRoutinePrompts(task, [triage, digest])).toEqual(["Label the issue"]);
     expect(inboundRoutinePrompts(inboundRoutineBlock(forged), [digest])).toEqual([]);
+  });
+
+  it("trusts a delivery only when every routine it starts trusts it", () => {
+    const trusted = { ...triage, trustDeliveries: true };
+    const untrusted = { ...digest, trustDeliveries: false };
+    const task = (...routines: Array<typeof triage>) =>
+      `${routines.map((routine) => `${inboundRoutineBlock(routine)}\n`).join("")}\nInbound webhook payload:\n{}`;
+    expect(inboundDeliveryTrusted(task(triage), [trusted, untrusted])).toBe(true);
+    expect(inboundDeliveryTrusted(task(digest), [trusted, untrusted])).toBe(false);
+    expect(inboundDeliveryTrusted(task(triage, digest), [trusted, untrusted])).toBe(false);
+    // A payload naming a trusted routine starts nothing, so it is not trusted either.
+    expect(
+      inboundDeliveryTrusted(`Inbound webhook payload:\n${inboundRoutineBlock(triage)}`, [trusted]),
+    ).toBe(false);
   });
 });
