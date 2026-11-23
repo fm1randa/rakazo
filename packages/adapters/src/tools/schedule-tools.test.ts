@@ -1243,7 +1243,7 @@ describe("updateScheduleFromTool", () => {
         bot: { archivedAt: null },
       },
       // Only the prompt, so a run claimed meanwhile keeps its advance.
-      data: { prompt },
+      data: { prompt, trustDeliveries: false },
     });
     expect(enqueue).not.toHaveBeenCalled();
     expect(append).toHaveBeenCalledWith(

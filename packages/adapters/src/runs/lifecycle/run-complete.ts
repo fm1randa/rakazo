@@ -9,6 +9,7 @@ import {
   displayName,
   isBackgroundRunTrigger,
   redactSecrets,
+  runsBesideConversation,
   withoutLastToolStepNotes,
 } from "@rakazo/core";
 import { getLogger } from "@rakazo/logging";
@@ -138,6 +139,18 @@ export async function completeRun(ctx: RunContext) {
     completionMarksUnread(run.trigger, text, ctx.source.peerMessage?.repliesToRequest === true);
   await ctx.settleRunningHelpers();
   const answeredMessageIds = await conversationRetentionMessages(ctx);
+  // Local patch: a webhook turn, or a routine that runs alongside its chat, hands its result to a
+  // turn talking with its person.
+  const besideConversation =
+    runsBesideConversation(run.trigger) ||
+    (run.trigger === "routine" &&
+      Boolean(run.routineId) &&
+      (
+        await deps.prisma.routine.findUnique({
+          where: { id: run.routineId! },
+          select: { inChat: true },
+        })
+      )?.inChat === false);
   const completed = await deps.events.finalizeRun({
     spaceId: run.spaceId,
     threadId: thread.id,
@@ -150,6 +163,7 @@ export async function completeRun(ctx: RunContext) {
     outcome: "completed",
     blocks,
     markUnread: !groupSilentEnd && marksUnread,
+    besideConversation,
   });
   if (!completed) return;
   ctx.stopHeartbeatAfterCompletion();

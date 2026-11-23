@@ -150,6 +150,46 @@ export function runReadsThreadHistory(trigger: string | null | undefined): boole
   return trigger !== "created" && trigger !== "routine";
 }
 
+/**
+ * Local patch: a webhook turn works beside the bot's conversation, like a routine that runs
+ * alongside its chat. A person's message never waits behind one, and a delivery never waits behind
+ * the conversation.
+ */
+export const BESIDE_CONVERSATION_TRIGGERS = ["webhook"] as const;
+const BESIDE_CONVERSATION_TRIGGER_SET = new Set<string>(BESIDE_CONVERSATION_TRIGGERS);
+
+export function runsBesideConversation(trigger: string | null | undefined): boolean {
+  return BESIDE_CONVERSATION_TRIGGER_SET.has(trigger ?? "");
+}
+
+/**
+ * History of a turn beside the conversation. From the first message the conversation is still
+ * answering, it keeps only this run's delivery and its own messages, so it never answers the
+ * person a second time. `openConversationFromSeq` is that first message's seq, or null when the
+ * conversation has nothing open.
+ */
+export function historyBesideConversation<
+  T extends { id: string; seq: number; runId?: string | null },
+>(
+  messages: T[],
+  run: { id: string; sourceMessageId?: string | null },
+  openConversationFromSeq: number | null,
+): T[] {
+  if (openConversationFromSeq == null) return messages;
+  return messages.filter(
+    (message) =>
+      message.seq < openConversationFromSeq ||
+      message.runId === run.id ||
+      message.id === run.sourceMessageId,
+  );
+}
+
+/**
+ * Origin of the final message of work beside the conversation (a webhook turn or a routine that
+ * runs alongside), handed as context to a turn already talking with its person.
+ */
+export const BESIDE_RESULT_STEERING_ORIGIN = "beside_result";
+
 /** Whether a run's turn is part of the thread's conversation and may take user steering. */
 export function isConversationalRun(trigger: string | null | undefined): boolean {
   return !NON_CONVERSATIONAL_RUN_TRIGGERS.has(trigger ?? "");

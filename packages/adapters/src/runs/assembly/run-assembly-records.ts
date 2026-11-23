@@ -1,9 +1,17 @@
 import type { SemanticMemoryProvider } from "@rakazo/adapter-kit";
 import { hasLab, resolveLabs } from "@rakazo/contracts";
-import { BACKGROUND_HELPER_TRIGGER, isMessagingChannelRun, messagingChannelId } from "@rakazo/core";
+import {
+  BACKGROUND_HELPER_TRIGGER,
+  historyBesideConversation,
+  isMessagingChannelRun,
+  messagingChannelId,
+  QUEUE_HOLDING_RUN_STATUSES,
+  runsBesideConversation,
+} from "@rakazo/core";
 import {
   effectiveMemoryScope,
   expireRunToolQuestions,
+  HOLDS_CHAT,
   loadRunHistoryMessages,
   loadRunTurnCheckpoint,
   readMessageBlocks,
@@ -184,7 +192,7 @@ export async function loadRunRecords(
   const [
     { bot, ownerLabs },
     thread,
-    messages,
+    loadedMessages,
     peerMessage,
     task,
     storedConnections,
@@ -275,6 +283,15 @@ export async function loadRunRecords(
     loadRunLoginRedactions(deps.prisma, deps.secretStore, run, run.id),
     loadRunCodeRedactions(deps.prisma, deps.secretStore, run, run.id),
   ]);
+  // Local patch: a webhook turn works beside the conversation, so it leaves out what the
+  // conversation is still answering and never answers the person a second time.
+  const messages = runsBesideConversation(run.trigger)
+    ? historyBesideConversation(
+        loadedMessages,
+        run,
+        await openConversationFromSeq(deps.prisma, run, loadedMessages),
+      )
+    : loadedMessages;
   // Team chat reaches people besides the owner, so their runs get a group channel's limits.
   const conversationThread = origin?.thread ?? thread;
   const teamChatConversationId =
@@ -462,3 +479,30 @@ export async function connectRun(
 }
 
 export type ConnectedRun = Awaited<ReturnType<typeof connectRun>>;
+
+/**
+ * Seq of the first message the bot's conversation is still answering in this thread: the source
+ * of a conversation turn not finished yet, or a message still waiting for its own turn.
+ */
+async function openConversationFromSeq(
+  prisma: RunHold["deps"]["prisma"],
+  run: { id: string; threadId: string; botId: string },
+  messages: { id: string; seq: number; steeringMessages: unknown[] }[],
+): Promise<number | null> {
+  const openRuns = await prisma.run.findMany({
+    where: {
+      threadId: run.threadId,
+      botId: run.botId,
+      id: { not: run.id },
+      status: { in: [...QUEUE_HOLDING_RUN_STATUSES] },
+      trigger: { not: BACKGROUND_HELPER_TRIGGER },
+      ...HOLDS_CHAT,
+    },
+    select: { sourceMessage: { select: { seq: true } } },
+  });
+  const seqs = [
+    ...openRuns.flatMap((open) => (open.sourceMessage ? [open.sourceMessage.seq] : [])),
+    ...messages.filter((message) => message.steeringMessages.length > 0).map((m) => m.seq),
+  ];
+  return seqs.length > 0 ? Math.min(...seqs) : null;
+}

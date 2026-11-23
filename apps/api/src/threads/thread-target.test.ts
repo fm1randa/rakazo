@@ -2920,7 +2920,7 @@ describe("sendThreadMessage", () => {
       expect(enqueue).not.toHaveBeenCalled();
     },
   );
-  it("keeps a group message pending instead of steering into a member's webhook run", async () => {
+  it("starts a group message's own run beside a member's webhook run", async () => {
     let messageSeq = 0;
     let eventSeq = 0;
     const tx = {
@@ -3012,11 +3012,10 @@ describe("sendThreadMessage", () => {
       { text: "status?", mentions: ["bot-a"], clientNonce: "nonce-group-webhook" },
     );
 
-    expect(result).toMatchObject({ runId: "run-webhook", taskId: "task-webhook" });
-    expect(tx.steeringMessage.create).toHaveBeenCalledWith({
-      data: { messageId: "msg-1", botId: "bot-a", userId: "user-1", runId: null },
-    });
-    expect(tx.run.create).not.toHaveBeenCalled();
+    // Local patch: a webhook turn works beside the conversation, so nothing waits behind it.
+    expect(result).toMatchObject({ runId: "run-a", taskId: "task-a" });
+    expect(tx.steeringMessage.create).not.toHaveBeenCalled();
+    expect(tx.run.create).toHaveBeenCalledOnce();
   });
   it("names the bot of the sender's own run when another member's run holds the first bot", async () => {
     let messageSeq = 0;

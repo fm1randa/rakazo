@@ -252,6 +252,78 @@ describe("finalizeRun", () => {
     );
   });
 
+  it("hands the result of work beside the conversation to the turn talking with its person", async () => {
+    const tx = {
+      $executeRaw: vi.fn(async () => 0),
+      externalEffect: { deleteMany: vi.fn(async () => ({ count: 0 })) },
+      $queryRaw: vi.fn(async () => []),
+      run: {
+        findUnique: vi.fn(async () => ({ status: "running", startedAt: null, userId: "user-1" })),
+        findFirst: vi.fn(async () => null),
+        findMany: vi.fn(async () => [
+          { id: "run-chat", trigger: "user" },
+          { id: "run-helper", trigger: "helper" },
+        ]),
+        updateMany: vi.fn(async () => ({ count: 1 })),
+      },
+      attempt: { updateMany: vi.fn(async () => ({ count: 1 })) },
+      task: { updateMany: vi.fn(async () => ({ count: 1 })) },
+      thread: { update: vi.fn(async () => ({ nextEventSeq: 1, nextMessageSeq: 5 })) },
+      secret: { deleteMany: vi.fn(async () => ({ count: 0 })) },
+      event: {
+        create: vi.fn(async ({ data }: { data: { type: string } }) => ({
+          ...data,
+          threadId: "thread-1",
+          seq: 0,
+          createdAt: new Date(),
+        })),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
+      },
+      steeringMessage: {
+        create: vi.fn(async () => ({})),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
+        findMany: vi.fn(async () => []),
+        updateMany: vi.fn(async () => ({ count: 0 })),
+      },
+      message: {
+        create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => ({
+          ...data,
+          id: "message-beside",
+        })),
+      },
+      bot: { update: vi.fn(async () => ({})) },
+    };
+    const prisma = {
+      $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
+    } as unknown as PrismaClient;
+
+    await finalizeRun(prisma, {
+      spaceId: "space-1",
+      threadId: "thread-1",
+      botId: "bot-1",
+      runId: "run-webhook",
+      taskId: "task-1",
+      attemptId: "attempt-1",
+      leaseOwner: "worker-1",
+      leaseFence: 1,
+      outcome: "completed",
+      blocks: [{ kind: "text", text: "Two threads went quiet." }],
+      besideConversation: true,
+    });
+
+    // Only the conversational turn gets it, as context that asks for no reply of its own.
+    expect(tx.steeringMessage.create).toHaveBeenCalledWith({
+      data: {
+        messageId: "message-beside",
+        botId: "bot-1",
+        userId: "user-1",
+        runId: "run-chat",
+        originTrigger: "beside_result",
+      },
+    });
+    expect(tx.steeringMessage.create).toHaveBeenCalledTimes(1);
+  });
+
   it("saves no message for a failure without a partial reply", async () => {
     const create = vi.fn();
     const tx = {
@@ -4563,7 +4635,7 @@ describe("sendUserMessage", () => {
     },
   );
 
-  it("keeps an agreed inbound model on steering while a routine run is busy", async () => {
+  it("starts an inbound delivery's own run with its agreed model beside a busy routine", async () => {
     const tx = {
       $queryRaw: vi.fn(async () => []),
       space: { findUnique: vi.fn() },
@@ -4578,13 +4650,13 @@ describe("sendUserMessage", () => {
         update: vi.fn().mockResolvedValue({ id: "message-1" }),
       },
       steeringMessage: { create: vi.fn() },
-      task: { create: vi.fn() },
+      task: { create: vi.fn().mockResolvedValue({ id: "task-own" }) },
       run: {
         findMany: vi
           .fn()
           .mockResolvedValue([{ id: "run-routine", taskId: "task-routine", trigger: "routine" }]),
         findUnique: vi.fn().mockResolvedValue({ status: "running" }),
-        create: vi.fn(),
+        create: vi.fn().mockResolvedValue({ id: "run-own", taskId: "task-own" }),
       },
       event: {
         create: vi.fn(async ({ data }: { data: { seq: number; type: string } }) => ({
@@ -4612,18 +4684,17 @@ describe("sendUserMessage", () => {
       },
     });
 
-    expect(tx.run.create).not.toHaveBeenCalled();
-    expect(tx.steeringMessage.create).toHaveBeenCalledWith({
-      data: {
-        messageId: "message-1",
-        botId: "bot-1",
-        userId: "user-1",
-        runId: null,
-        originTrigger: "webhook",
+    // Local patch: a delivery never waits; it starts its own turn with its model.
+    expect(tx.steeringMessage.create).not.toHaveBeenCalled();
+    expect(tx.run.findMany).not.toHaveBeenCalled();
+    expect(tx.run.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        trigger: "webhook",
         modelProvider: "openai-compatible",
         modelId: "private-model",
         thinkingLevel: "low",
-      },
+        modelPinned: true,
+      }),
     });
   });
 

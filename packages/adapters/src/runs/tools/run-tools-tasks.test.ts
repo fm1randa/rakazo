@@ -184,7 +184,7 @@ describe("routine tools on a bot this bot manages", () => {
     expect(updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ spaceId: "s", botId: "other", id: "routine-peer" }),
-        data: { prompt: "New" },
+        data: { prompt: "New", trustDeliveries: false },
       }),
     );
     await expect(

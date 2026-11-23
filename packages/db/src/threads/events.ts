@@ -8,6 +8,7 @@ import {
 } from "@rakazo/contracts";
 import {
   BACKGROUND_HELPER_TRIGGER,
+  BESIDE_RESULT_STEERING_ORIGIN,
   callIdFromClientNonce,
   isConversationalRun,
   messageBypassesTakeoverWait,
@@ -15,6 +16,7 @@ import {
   messagingChannelId,
   normalizeRunError,
   QUEUE_HOLDING_RUN_STATUSES,
+  runsBesideConversation,
   sanitizeJsonValue,
   splitToolHistory,
 } from "@rakazo/core";
@@ -189,6 +191,11 @@ export type FinalizeRunInput = FinalizeRunBase &
         /** Steps may carry their tool and kept calls; they are stored apart from the blocks. */
         blocks: MessageBlock[];
         markUnread?: boolean;
+        /**
+         * Local patch: the run worked beside the conversation (a webhook turn, or a routine that
+         * runs alongside its chat), so its final message reaches a turn talking with its person.
+         */
+        besideConversation?: boolean;
       }
     | {
         outcome: "failed";
@@ -508,8 +515,9 @@ export async function sendUserMessage(
       // Include the creation intro. It has no tools, so it must not absorb the message, and a
       // second run would overlap it on a dedicated computer. Pending steering waits for the
       // continuation that starts when the intro finishes.
+      // Local patch: a delivery works beside the conversation, so it starts its own turn at once.
       const activeRuns =
-        createRun && !input.allowParallelRun
+        createRun && !input.allowParallelRun && !runsBesideConversation(input.trigger)
           ? await tx.run.findMany({
               where: {
                 threadId: input.threadId,
@@ -791,6 +799,39 @@ export async function finalizeRun(
   return { continuationRunId: committed.continuationRunId };
 }
 
+/**
+ * Local patch: work beside the conversation may finish while a turn is talking with its person.
+ * That turn takes the final message as context, so it can mention it.
+ */
+async function handBesideResultToConversation(
+  tx: Prisma.TransactionClient,
+  input: { runId: string; threadId: string; botId: string; userId: string; messageId: string },
+) {
+  const talking = await tx.run.findMany({
+    where: {
+      threadId: input.threadId,
+      botId: input.botId,
+      userId: input.userId,
+      id: { not: input.runId },
+      status: { in: ["leased", "running"] },
+      ...HOLDS_CHAT,
+    },
+    select: { id: true, trigger: true },
+  });
+  for (const turn of talking) {
+    if (!isConversationalRun(turn.trigger) || turn.trigger === BACKGROUND_HELPER_TRIGGER) continue;
+    await tx.steeringMessage.create({
+      data: {
+        messageId: input.messageId,
+        botId: input.botId,
+        userId: input.userId,
+        runId: turn.id,
+        originTrigger: BESIDE_RESULT_STEERING_ORIGIN,
+      },
+    });
+  }
+}
+
 /** Stamps one turn-level wall-clock duration on the final tool block. */
 export function completedRunBlocks(
   blocks: MessageBlock[],
@@ -933,6 +974,15 @@ async function finalizeRunOnce(
         payload: { messageId: message.id, role: "bot", blocks: replyBlocks },
       });
       firstResponse = response.firstResponse;
+      if (input.outcome === "completed" && input.besideConversation && writableRun) {
+        await handBesideResultToConversation(tx, {
+          runId: input.runId,
+          threadId: input.threadId,
+          botId: input.botId,
+          userId: writableRun.userId,
+          messageId: message.id,
+        });
+      }
     }
     const lastEvent = await appendEventInTransaction(tx, {
       spaceId: input.spaceId,
@@ -951,8 +1001,14 @@ async function finalizeRunOnce(
       ]);
     }
     if (input.outcome === "completed") {
+      // A result handed over from beside the conversation was context for this turn only; it
+      // never asks for a reply, so it never outlives the turn. (On failure it stays tied to the
+      // failed run, which nothing reads again.)
       await tx.steeringMessage.deleteMany({
-        where: { runId: input.runId, claimedAt: { not: null } },
+        where: {
+          runId: input.runId,
+          OR: [{ claimedAt: { not: null } }, { originTrigger: BESIDE_RESULT_STEERING_ORIGIN }],
+        },
       });
       await tx.steeringMessage.updateMany({
         where: { runId: input.runId },

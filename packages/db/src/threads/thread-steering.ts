@@ -2,6 +2,7 @@ import type { MessageBlock } from "@rakazo/contracts";
 import {
   BACKGROUND_HELPER_TRIGGER,
   BACKGROUND_RUN_TRIGGERS,
+  BESIDE_RESULT_STEERING_ORIGIN,
   blocksToAgentHistoryText,
   HELPER_RESULT_TRIGGER,
   isConversationalRun,
@@ -35,9 +36,10 @@ export interface ClaimedSteeringMessage {
   blocks: MessageBlock[];
   /**
    * Who sent it: the run's own person (in the app or a connected chat), another member of the
-   * chat, someone else in a connected chat, a webhook, or a scheduled task handed over mid-run.
+   * chat, someone else in a connected chat, a webhook, a scheduled task handed over mid-run, or
+   * (local patch) the result of work that finished beside the conversation.
    */
-  origin: "user" | "member" | "messaging" | "webhook" | "routine";
+  origin: "user" | "member" | "messaging" | "webhook" | "routine" | "beside_result";
 }
 
 export async function claimSteering(
@@ -217,15 +219,17 @@ async function claimSteeringOnce(
         text: blocksToAgentHistoryText(blocks),
         blocks,
         origin:
-          item.originTrigger === "webhook"
-            ? ("webhook" as const)
-            : item.originTrigger === "routine"
-              ? ("routine" as const)
-              : sentByRunPerson(item)
-                ? ("user" as const)
-                : item.originTrigger === "messaging"
-                  ? ("messaging" as const)
-                  : ("member" as const),
+          item.originTrigger === BESIDE_RESULT_STEERING_ORIGIN
+            ? ("beside_result" as const)
+            : item.originTrigger === "webhook"
+              ? ("webhook" as const)
+              : item.originTrigger === "routine"
+                ? ("routine" as const)
+                : sentByRunPerson(item)
+                  ? ("user" as const)
+                  : item.originTrigger === "messaging"
+                    ? ("messaging" as const)
+                    : ("member" as const),
       };
     });
   }, THREAD_LOCK_TRANSACTION_OPTIONS);
@@ -295,6 +299,9 @@ export async function createPendingSteeringRun(
       botId: input.botId,
       runId: null,
       message: { threadId: input.threadId },
+      // A result handed over from beside the conversation is context for a turn already running,
+      // never a reason to start one.
+      OR: [{ originTrigger: null }, { originTrigger: { not: BESIDE_RESULT_STEERING_ORIGIN } }],
     },
     include: { message: { select: { id: true, blocks: true, seq: true } } },
     orderBy: [{ message: { seq: "asc" } }, { id: "asc" }],

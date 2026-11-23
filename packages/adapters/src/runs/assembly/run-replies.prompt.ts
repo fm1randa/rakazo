@@ -198,6 +198,8 @@ const MID_TASK_SOURCES = {
   messaging: "a connected chat",
   webhook: "a webhook",
   routine: "your scheduled task",
+  beside_result:
+    "work you did in the background (a webhook or a routine), which just finished (this is its result, not a message from the user; mention it only if it matters to them)",
 } as const;
 
 /** A message from anyone else arrives labelled with where it came from, with no call to reply. */

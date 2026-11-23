@@ -12,7 +12,7 @@ import type { ActionApprovalRule } from "@rakazo/core";
 import { inboundRoutineBlock } from "@rakazo/core";
 import { approvalEffectKey, toolEffectIdempotencyKey } from "@rakazo/core/node/approval-effect-key";
 import type { PrismaClient } from "@rakazo/db";
-import { createPendingSteeringRun, sendUserMessage } from "@rakazo/db";
+import { sendUserMessage } from "@rakazo/db";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DENIED_ACTION_ERROR, isApprovalPausedResult } from "../../approvals/approval-effect.js";
 import { fakeSpendingPrisma } from "../../billing/fake-spending.js";
@@ -370,6 +370,8 @@ function fixture({
           where?: { trigger?: { in?: string[] } };
         }): Promise<{ id: string } | null> => null,
       ),
+      // No conversation turn is open beside a webhook run (see openConversationFromSeq).
+      findMany: vi.fn(async () => []),
       findUnique: vi.fn(async () => run),
       findUniqueOrThrow: vi.fn(async () => run),
       updateMany: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
@@ -813,10 +815,8 @@ function fixture({
         prompt: promptText,
         blocks: inboundMessage.blocks as never,
       });
-      if (busyTrigger) {
-        expect(pending[0]).toMatchObject({ runId: null, originTrigger: "webhook" });
-        await createPendingSteeringRun(tx as never, run);
-      }
+      // Local patch: a delivery works beside whatever the bot is doing; it never waits as steering.
+      expect(pending).toEqual([]);
       expect(run.trigger).toBe("webhook");
       expect(run.sourceMessageId).toBe(inboundMessage.id);
     },

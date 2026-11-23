@@ -165,7 +165,11 @@ async function runTurn(
     space: { findUnique: vi.fn(async () => null) },
     spaceMember: { findUnique: vi.fn(async () => ({ id: "member-1" })) },
     user: { findUnique: vi.fn(async () => null) },
+    // A webhook run reads the bot's routines to see whether they trust the delivery.
+    routine: { findMany: vi.fn(async () => []) },
     run: {
+      // No conversation turn is open beside a webhook run (see openConversationFromSeq).
+      findMany: vi.fn(async () => []),
       findUnique: vi.fn(async () => run),
       findUniqueOrThrow: vi.fn(async () => run),
       updateMany: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
