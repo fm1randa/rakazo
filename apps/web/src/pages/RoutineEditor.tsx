@@ -87,6 +87,12 @@ export function RoutineEditor({
     Boolean(draft.messageProvider) ||
     Boolean(draft.emailSenders) ||
     Boolean(draft.watch);
+  // Deliveries from outside, which ask before every action unless the routine trusts them.
+  const inboundTrigger =
+    draft.webhookEnabled ||
+    draft.githubEnabled ||
+    Boolean(draft.messageProvider) ||
+    Boolean(draft.emailSenders);
   const canTest = Boolean(editing) && !saving && !running;
   const needsOneShotArm =
     editing != null && routineNeedsOneShotArm(editing, draft.schedules.map(cronFromPreset));
@@ -250,6 +256,26 @@ export function RoutineEditor({
               onChange={(emailSenders) => onChange({ ...draft, emailSenders })}
               onRemove={() => onChange({ ...draft, emailSenders: null })}
             />
+          ) : null}
+
+          {inboundTrigger ? (
+            <label
+              htmlFor={`${fieldId}-trust-deliveries`}
+              className="flex items-start gap-2.5 text-body text-foreground/75"
+            >
+              <Switch
+                id={`${fieldId}-trust-deliveries`}
+                checked={draft.trustDeliveries}
+                onCheckedChange={(trustDeliveries) => onChange({ ...draft, trustDeliveries })}
+                className="mt-0.5"
+              />
+              <span>
+                <Trans>Trust deliveries</Trans>
+                <span className="block text-body-sm text-muted-foreground">
+                  <Trans>Uses your approval settings. Only for senders you control.</Trans>
+                </span>
+              </span>
+            </label>
           ) : null}
 
           {needsOneShotArm ? (

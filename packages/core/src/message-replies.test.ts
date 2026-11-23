@@ -183,6 +183,21 @@ describe("channelMessageSender", () => {
 describe("previewMessageText", () => {
   const labels = { photo: "Photo", attachment: "Attachment", message: "Message" };
 
+  it("names the routines a delivery started instead of its text", () => {
+    expect(
+      previewMessageText(
+        {
+          role: "user",
+          blocks: [
+            { kind: "inbound_routine", source: "webhook", routines: ["Alerts", "Triage"] },
+            { kind: "text", text: 'Run routine "Alerts": ...' },
+          ],
+        },
+        labels,
+      ),
+    ).toBe("Alerts, Triage");
+  });
+
   it("joins text, reading bot Markdown as plain text", () => {
     expect(
       previewMessageText(

@@ -521,7 +521,9 @@ describe("inbound email route", () => {
       prompt: string;
       blocks: Array<{ kind: string }>;
     };
-    expect(sent.blocks.filter((block) => block.kind !== "text")).toHaveLength(4);
+    expect(
+      sent.blocks.filter((block) => block.kind === "file" || block.kind === "image"),
+    ).toHaveLength(4);
     expect(sent.prompt).toContain("[file: setup.exe (unavailable)]");
     expect(sent.prompt).not.toContain("[file: d.png (unavailable)]");
   });

@@ -37,6 +37,11 @@ export function isPeerReceiptBlocks(blocks: readonly MessageBlock[]): boolean {
   );
 }
 
+/** A delivery from outside that started routines; it shows as one line, like a peer receipt. */
+export function isInboundRoutineBlocks(blocks: readonly MessageBlock[]): boolean {
+  return blocks.some((block) => block.kind === "inbound_routine");
+}
+
 /** User-input cards remain visible when their run otherwise stays in the background. */
 export function isBackgroundInputBlock(block: unknown): boolean {
   return (

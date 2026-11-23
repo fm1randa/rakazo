@@ -8,6 +8,7 @@ import {
   expandSkillReferencesInPrompt,
   formatSkillRunPrompt,
   formatSkillsCatalogInstruction,
+  inboundDeliveryTrusted,
   isCallClientNonce,
   isMessagingChannelRun,
   isOwnerStartedRun,
@@ -1206,7 +1207,18 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
         // Calls carry no schema flag: the sending client encodes them in the clientNonce.
         const sourceClientNonce = sourceMessage?.clientNonce ?? null;
         // A follow-up can be queued by a bot (group handoffs); only the user's own counts.
-        const ownerStartedRun = isOwnerStartedRun(run.trigger, sourceMessage?.role === "user");
+        // A delivery whose every routine the owner marked trusted runs as theirs: their approval
+        // settings apply, as they would to a message they sent.
+        const ownerStartedRun =
+          isOwnerStartedRun(run.trigger, sourceMessage?.role === "user") ||
+          (run.trigger === "webhook" &&
+            inboundDeliveryTrusted(
+              task.prompt,
+              await deps.prisma.routine.findMany({
+                where: { botId: run.botId, spaceId: run.spaceId, userId: run.userId },
+                select: { name: true, prompt: true, trustDeliveries: true },
+              }),
+            ));
         // A hang-up run has no source message: its own nonce carries the call it closes.
         const callEndRun = run.trigger === "call_end";
         const callClientNonceForRun = callEndRun ? run.clientNonce : sourceClientNonce;

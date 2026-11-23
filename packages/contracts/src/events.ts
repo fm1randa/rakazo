@@ -237,6 +237,23 @@ export const MessageBlock = z.discriminatedUnion("kind", [
   }),
   z.object({ kind: z.literal("meta"), text: z.string() }),
   z.object({
+    kind: z.literal("delivery"),
+    source: z.enum(["webhook", "email", "messaging"]),
+    title: z.string().max(300),
+  }),
+  z.object({
+    /**
+     * Marks a delivery from outside (a webhook, Git event, email or message) that started
+     * routines. Chats show it as one line naming them; the delivery's text block stays in the
+     * message, for the bot's history and for anyone who opens it.
+     */
+    kind: z.literal("inbound_routine"),
+    source: z.enum(["webhook", "github", "messaging", "email"]),
+    routines: z.array(z.string()).min(1),
+    /** The delivery's own event name, such as a GitHub event; absent when it gave none. */
+    event: z.string().optional(),
+  }),
+  z.object({
     kind: z.literal("progress"),
     text: z.string(),
     /** Provider-generated tool status rather than assistant-authored narration. */

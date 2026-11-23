@@ -102,7 +102,7 @@ function fixture({
   fleetManagement = false,
   fleetBots = [] as { id: string; name: string; thread?: { id: string } }[],
   secondResource = false,
-  routines = [] as { name: string; prompt: string }[],
+  routines = [] as { name: string; prompt: string; trustDeliveries?: boolean }[],
   connectedApps = [] as string[],
   userDevices,
   botUserId = "user-1",
@@ -121,7 +121,7 @@ function fixture({
   /** The bot's owner; runs are started by user-1. */
   botUserId?: string;
   connectedApps?: string[];
-  routines?: { name: string; prompt: string }[];
+  routines?: { name: string; prompt: string; trustDeliveries?: boolean }[];
   /** Adds `demo_get_other`, a read on a separate installed resource with the same name prefix. */
   secondResource?: boolean;
   /** The switch as the run starts; `liveBot` is what a later read sees. */
@@ -1187,6 +1187,51 @@ describe("connector read-only metadata and approval enforcement", () => {
       expect(f.execute).not.toHaveBeenCalled();
       expect(f.pauseRunForInput).toHaveBeenCalledOnce();
       expect(isApprovalPausedResult(f.results[0])).toBe(true);
+    });
+
+    describe("a delivery whose routines trust it", () => {
+      const delivery = (trustDeliveries: boolean[]) => ({
+        routines: trustDeliveries.map((trusted, index) => ({
+          name: `Alerts ${index}`,
+          prompt: "Handle it.",
+          trustDeliveries: trusted,
+        })),
+        prompt: `${trustDeliveries
+          .map((_, index) => `Run routine "Alerts ${index}":\nHandle it.\n`)
+          .join("")}\nInbound webhook payload:\n{"event":"done"}`,
+      });
+      const allowSend = [
+        { effect: "always_allow", matchKind: "tool", matchValue: "demo_send_message" },
+      ] as const;
+
+      it("runs a write the owner always allows, as their own message would", async () => {
+        const f = fixture({
+          catalog,
+          name: "demo_send_message",
+          trigger: "webhook",
+          rules: [...allowSend],
+          ...delivery([true]),
+        });
+        await f.run();
+        expect(f.execute).toHaveBeenCalledOnce();
+        expect(f.pauseRunForInput).not.toHaveBeenCalled();
+      });
+
+      it.each([[[false]], [[true, false]]])(
+        "still asks when any routine it starts does not trust it (%j)",
+        async (trusted) => {
+          const f = fixture({
+            catalog,
+            name: "demo_send_message",
+            trigger: "webhook",
+            rules: [...allowSend],
+            ...delivery(trusted),
+          });
+          await f.run();
+          expect(f.execute).not.toHaveBeenCalled();
+          expect(f.pauseRunForInput).toHaveBeenCalledOnce();
+        },
+      );
     });
 
     it("lets a webhook-triggered declared read run unattended", async () => {

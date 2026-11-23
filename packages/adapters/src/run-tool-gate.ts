@@ -181,12 +181,16 @@ export async function gateToolCall(
     toolName === approvalName || toolName === name || declaredReadOnly === false
       ? declaredReadOnly
       : ctx.tools.connector.get(toolName)?.readOnly;
+  // A delivery the owner trusts runs as theirs (see the executor's ownerStartedRun), so only an
+  // untrusted one keeps the webhook rules.
+  const unattendedTrigger =
+    run.trigger === "webhook" && ctx.source.ownerStartedRun ? "user" : run.trigger;
   const requiresUnattendedApproval =
     !catalogControlRead &&
-    ((unidentifiedAction && run.trigger === "webhook") ||
+    ((unidentifiedAction && unattendedTrigger === "webhook") ||
       approvalToolNames.some((toolName) =>
         unattendedTriggerToolRequiresApproval(
-          run.trigger,
+          unattendedTrigger,
           toolName,
           viaConnector,
           declaredReadOnlyFor(toolName),
@@ -379,7 +383,7 @@ export async function gateToolCall(
         purchase: paying,
       });
   // Nobody is there to approve a purchase a webhook run reaches.
-  if (paying && run.trigger === "webhook" && plan !== "deny") {
+  if (paying && unattendedTrigger === "webhook" && plan !== "deny") {
     await auditToolCall(ctx, name, "denied", { reason: "purchase_unattended" });
     return {
       result: refusal(
@@ -549,7 +553,7 @@ export async function gateToolCall(
   if (context.signal.aborted) return { result: pauseForApproval(ctx) };
   if (
     siteGate === "new" &&
-    newSiteOutcome({ trigger: run.trigger, decision: gateDecision }) === "deny"
+    newSiteOutcome({ trigger: unattendedTrigger, decision: gateDecision }) === "deny"
   ) {
     if (applied) {
       await deps.prisma.externalEffect.updateMany({

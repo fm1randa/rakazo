@@ -52,6 +52,7 @@ export function routineRowData(actor: Actor, input: CreateRoutineInput, nextRunA
     active: input.active,
     webhookEnabled: input.webhookEnabled,
     githubEnabled: input.githubEnabled,
+    trustDeliveries: input.trustDeliveries,
     messageProvider: input.messageProvider,
     emailSenders: input.emailSenders,
     modelProvider: input.modelProvider,
@@ -89,6 +90,7 @@ export function mapRoutine(row: {
   notify: boolean;
   webhookEnabled: boolean;
   githubEnabled: boolean;
+  trustDeliveries?: boolean;
   messageProvider: string | null;
   emailSenders: string | null;
   modelProvider: string | null;
@@ -111,6 +113,7 @@ export function mapRoutine(row: {
     notify: row.notify,
     webhookEnabled: row.webhookEnabled,
     githubEnabled: row.githubEnabled,
+    trustDeliveries: row.trustDeliveries ?? false,
     messageProvider: row.messageProvider,
     emailSenders: RoutineEmailSendersSchema.safeParse(row.emailSenders).data ?? null,
     modelProvider: row.modelProvider ? canonicalPiProviderId(row.modelProvider) : null,

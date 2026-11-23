@@ -925,6 +925,7 @@ export const appContract = {
             notify: z.boolean().optional(),
             webhookEnabled: z.boolean().optional(),
             githubEnabled: z.boolean().optional(),
+            trustDeliveries: z.boolean().optional(),
             messageProvider: z
               .string()
               .min(1)

@@ -572,6 +572,12 @@ export const RoutineSchema = z.object({
   notify: z.boolean(),
   webhookEnabled: z.boolean(),
   githubEnabled: z.boolean(),
+  /**
+   * Deliveries (webhook, Git, email, message) that start only routines trusting them run as if
+   * the owner had sent them: the owner's approval settings apply instead of asking for every
+   * action. Absent on older servers.
+   */
+  trustDeliveries: z.boolean().default(false),
   messageProvider: z
     .string()
     .min(1)
@@ -608,6 +614,7 @@ export const CreateRoutineInput = z
     active: z.boolean().default(false),
     webhookEnabled: z.boolean().default(false),
     githubEnabled: z.boolean().default(false),
+    trustDeliveries: z.boolean().default(false),
     messageProvider: z
       .string()
       .min(1)

@@ -272,6 +272,8 @@ async function runTurn(
         prompt: "Look again",
       })),
     },
+    // A webhook run checks whether its routines trust the delivery; none here.
+    routine: { findMany: vi.fn(async () => []) },
     computer: { updateMany: vi.fn(async () => ({ count: 1 })) },
     connection: { findMany: vi.fn(async () => []) },
     userModelPreference: {

@@ -22,6 +22,7 @@ const routine: Routine = {
   notify: true,
   webhookEnabled: false,
   githubEnabled: false,
+  trustDeliveries: false,
   messageProvider: null,
   emailSenders: null,
   modelProvider: null,

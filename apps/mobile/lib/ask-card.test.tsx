@@ -585,6 +585,13 @@ it("uses the full column for wide asks and reserves only the visible avatar gutt
     expect(regular.maxWidth).toBe(avatar ? undefined : "90%");
     expect(regular.menuMaxWidth).toBe(avatar ? 360 - gutter : 324);
   }
+  const centered = messageRowLayout(
+    [{ kind: "inbound_routine", source: "webhook", routines: ["Alerts"] }],
+    { inGroup: false, columnWidth: 400 },
+  );
+  // The chip's menu wrapper spans the column, so the label centers instead of hugging the start.
+  expect(centered.menuFullWidth).toBe(true);
+  expect(centered.menuMaxWidth).toBe(360);
   for (const kind of ["appConnect", "mcpApproval", "options"] as const) {
     const card = measure(kind, false, false);
     expect(card.width).toBe("90%");

@@ -488,6 +488,19 @@ const team: Scenario = {
         text: "Tuesday works for me",
       },
     ]),
+    message("user", [
+      {
+        kind: "inbound_routine",
+        source: "webhook",
+        routines: ["Deploy alerts"],
+        event: "deploy.failed",
+      },
+      {
+        kind: "text",
+        text: 'Run routine "Deploy alerts":\nTell me when a deploy fails.\n\nInbound webhook payload:\n[Inbound Event: deploy.failed]',
+      },
+    ]),
+    say("The deploy failed at the migration step."),
     bot([{ kind: "child_bot", botId: SCOUT.botId, name: SCOUT.name, status: "created" }]),
     bot([{ kind: "child_bot", botId: LEDGER.botId, name: LEDGER.name, status: "archived" }]),
   ],

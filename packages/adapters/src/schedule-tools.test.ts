@@ -1144,7 +1144,12 @@ describe("updateScheduleFromTool", () => {
         id: "routine-1",
         bot: { archivedAt: null },
       },
-      data: { userId: "user-2", watchState: Prisma.DbNull, prompt: "Order less" },
+      data: {
+        userId: "user-2",
+        watchState: Prisma.DbNull,
+        prompt: "Order less",
+        trustDeliveries: false,
+      },
     });
   });
 
@@ -1172,8 +1177,9 @@ describe("updateScheduleFromTool", () => {
         id: "routine-1",
         bot: { archivedAt: null },
       },
-      // Only the prompt, so a run claimed meanwhile keeps its advance.
-      data: { prompt },
+      // Only the prompt, so a run claimed meanwhile keeps its advance. Instructions the bot
+      // rewrote are no longer the owner's, so deliveries to the routine stop being trusted.
+      data: { prompt, trustDeliveries: false },
     });
     expect(enqueue).not.toHaveBeenCalled();
     expect(append).toHaveBeenCalledWith(

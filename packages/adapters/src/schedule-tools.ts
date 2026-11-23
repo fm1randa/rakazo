@@ -946,7 +946,10 @@ export async function updateScheduleFromTool(
         ? {}
         : { userId: input.userId, watchState: Prisma.DbNull }),
       ...(name === undefined ? {} : { name }),
-      ...(prompt === undefined ? {} : { prompt }),
+      // Instructions a bot rewrote are no longer the owner's, so its deliveries stop being trusted.
+      ...(prompt === undefined || prompt === existing.prompt
+        ? {}
+        : { prompt, trustDeliveries: false }),
       ...(timingChanged ? { crons, timezone, active, nextRunAt } : {}),
     },
   });

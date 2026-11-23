@@ -10,6 +10,7 @@ import type { ChildBotBlock, FoldedTranscript } from "@rakazo/core";
 import {
   expandPeerReplies,
   groupVoiceChats,
+  isInboundRoutineBlocks,
   isPeerReceiptBlocks,
   liveActivityLine,
   liveMessageComposing,
@@ -563,7 +564,9 @@ export const Transcript = memo(function Transcript({
           }
           const message = item.message;
           if (!messageHasVisibleBlocks(message.blocks, showToolActivity)) return null;
-          const peerReceipt = isPeerReceiptBlocks(message.blocks);
+          // Peer receipts and routine deliveries are centered lines, not bubbles.
+          const markerRow =
+            isPeerReceiptBlocks(message.blocks) || isInboundRoutineBlocks(message.blocks);
           const messageReactions = reactionView.reactions.get(message.id);
           return (
             <Fragment key={message.id}>
@@ -575,19 +578,19 @@ export const Transcript = memo(function Transcript({
               ) : null}
               <div
                 data-message-id={message.id}
-                className={peerReceipt ? "relative" : "group/message relative hover:z-[1]"}
+                className={markerRow ? "relative" : "group/message relative hover:z-[1]"}
               >
                 <div
                   className={
-                    peerReceipt
+                    markerRow
                       ? undefined
                       : `relative flex ${message.role === "user" ? "justify-end" : "justify-start"}`
                   }
                 >
                   <div
-                    data-testid={peerReceipt ? undefined : "message-bubble-frame"}
+                    data-testid={markerRow ? undefined : "message-bubble-frame"}
                     className={
-                      peerReceipt
+                      markerRow
                         ? undefined
                         : message.blocks.some(
                               (block) => block.kind === "ask" || block.kind === "mcp_approval",
@@ -611,7 +614,7 @@ export const Transcript = memo(function Transcript({
                       peerExchange={exchanges.lines.get(message.id)}
                       onAnswer={onAnswer}
                       speakerName={
-                        peerReceipt
+                        markerRow
                           ? undefined
                           : message.role === "bot"
                             ? memberName?.(message.botId)
@@ -642,7 +645,7 @@ export const Transcript = memo(function Transcript({
                     />
                   </div>
                 </div>
-                {!peerReceipt && messageReactions ? (
+                {!markerRow && messageReactions ? (
                   <div
                     data-testid="message-reactions"
                     className={cn(

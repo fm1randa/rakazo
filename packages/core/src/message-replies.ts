@@ -139,6 +139,9 @@ export function previewMessageText(
   message: { role: string; blocks: MessageBlock[] },
   labels: { photo: string; attachment: string; message: string },
 ): string {
+  // A delivery that started routines previews as their names, as its chat line does.
+  const inbound = message.blocks.find((block) => block.kind === "inbound_routine");
+  if (inbound?.kind === "inbound_routine") return inbound.routines.join(", ");
   const text = message.blocks
     .map((block) => {
       if (block.kind === "channel_message") return block.text;
