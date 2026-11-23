@@ -99,6 +99,7 @@ async function runInSpace(space: Space, options: RunOptions = {}) {
       ]),
     },
     run: {
+      findMany: vi.fn(async () => []),
       findUnique: vi.fn(async () => run),
       findUniqueOrThrow: vi.fn(async () => run),
       findFirst: vi.fn(async () => ({ bot: { notifyOnFinish: true }, thread: { groupId: null } })),

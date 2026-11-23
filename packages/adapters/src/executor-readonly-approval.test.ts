@@ -330,6 +330,7 @@ function fixture({
     payment: spending.client.payment,
     user: { findUnique: vi.fn(async () => null) },
     run: {
+      findMany: vi.fn(async () => []),
       findFirst: vi.fn(
         async (_query?: {
           where?: { trigger?: { in?: string[] } };

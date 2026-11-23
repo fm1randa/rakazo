@@ -2,6 +2,7 @@ import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import {
   ACTIVE_RUN_STATUSES,
+  historyBesideConversation,
   assertTransition,
   canTransition,
   helperCardState,
@@ -157,5 +158,28 @@ describe("helperCardState", () => {
       failed: false,
       body: "reading",
     });
+  });
+});
+
+describe("historyBesideConversation", () => {
+  const messages = [
+    { id: "answered", seq: 1, runId: "old" },
+    { id: "question", seq: 2, runId: null },
+    { id: "delivery", seq: 3, runId: null },
+    { id: "reply-in-progress", seq: 4, runId: "conversation" },
+    { id: "own-step", seq: 5, runId: "webhook" },
+  ];
+  const run = { id: "webhook", sourceMessageId: "delivery" };
+
+  it("keeps the whole history when the conversation has nothing open", () => {
+    expect(historyBesideConversation(messages, run, null)).toEqual(messages);
+  });
+
+  it("hides what the conversation is still answering, keeping its own delivery and messages", () => {
+    expect(historyBesideConversation(messages, run, 2).map((m) => m.id)).toEqual([
+      "answered",
+      "delivery",
+      "own-step",
+    ]);
   });
 });

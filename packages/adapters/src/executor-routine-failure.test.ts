@@ -96,6 +96,7 @@ async function failRun(scenario: Scenario) {
     spaceMember: { findUnique: vi.fn(async () => ({ id: "member-1" })) },
     user: { findUnique: vi.fn(async () => null) },
     run: {
+      findMany: vi.fn(async () => []),
       findUnique: vi.fn(async () => run),
       findUniqueOrThrow: vi.fn(async () => ({ ...run })),
       findFirst: vi.fn(async () => ({
@@ -633,6 +634,7 @@ function retryHarness(scenario: RetryScenario = {}) {
       deleteMany: vi.fn(async () => ({ count: 1 })),
     },
     run: {
+      findMany: vi.fn(async () => []),
       findFirst: vi.fn(async () => (scenario.laterRunBeforeCreate ? { id: "run-later" } : null)),
       deleteMany: vi.fn(async () => ({ count: scenario.retryStartedBeforeCleanup ? 0 : 1 })),
       create: vi.fn(async () => {
@@ -647,6 +649,7 @@ function retryHarness(scenario: RetryScenario = {}) {
     spaceMember: { findUnique: vi.fn(async () => ({ id: "member-1" })) },
     user: { findUnique: vi.fn(async () => null) },
     run: {
+      findMany: vi.fn(async () => []),
       findUnique: vi.fn(async () => failed),
       findFirst: vi.fn(async ({ select }: { select: { id?: boolean } }) =>
         select.id

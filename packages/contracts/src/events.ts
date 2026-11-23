@@ -236,16 +236,15 @@ export const MessageBlock = z.discriminatedUnion("kind", [
     durationSeconds: z.number().int().nonnegative().optional(),
   }),
   z.object({ kind: z.literal("meta"), text: z.string() }),
-  z.object({
-    kind: z.literal("delivery"),
-    source: z.enum(["webhook", "email", "messaging"]),
-    title: z.string().max(300),
-  }),
+  /**
+   * Marks a user message as what woke the bot (a webhook, an email, a chat message). Its text
+   * block is the bot's full prompt, so chats, previews and search leave the message out.
+   */
+  z.object({ kind: z.literal("delivery") }),
   z.object({
     /**
-     * Marks a delivery from outside (a webhook, Git event, email or message) that started
-     * routines. Chats show it as one line naming them; the delivery's text block stays in the
-     * message, for the bot's history and for anyone who opens it.
+     * Retired marker for a delivery that started routines; older messages still carry it and
+     * are hidden like a `delivery`. New deliveries use the `delivery` block.
      */
     kind: z.literal("inbound_routine"),
     source: z.enum(["webhook", "github", "messaging", "email"]),

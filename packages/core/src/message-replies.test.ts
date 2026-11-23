@@ -1,7 +1,7 @@
 import type { MessageBlock } from "@rakazo/contracts";
 import { ReplyPreviewSchema } from "@rakazo/contracts";
 import { describe, expect, it } from "vitest";
-import { messageReplyPreview } from "./message-quote.js";
+import { deriveMessageQuote, messageReplyPreview } from "./message-quote.js";
 import {
   channelMessageSender,
   isPageOriginReply,
@@ -181,9 +181,18 @@ describe("channelMessageSender", () => {
 });
 
 describe("previewMessageText", () => {
+  it("never previews or quotes a delivery's hidden prompt", () => {
+    const blocks: MessageBlock[] = [
+      { kind: "delivery" },
+      { kind: "text", text: 'Run routine "Triage":\nTriage this.' },
+    ];
+    expect(messageReplyPreview(blocks, "user")).toEqual({ role: "user", text: "" });
+    expect(deriveMessageQuote(blocks, "Triage this.", "plain-text")).toBeUndefined();
+  });
+
   const labels = { photo: "Photo", attachment: "Attachment", message: "Message" };
 
-  it("names the routines a delivery started instead of its text", () => {
+  it("never previews a delivery's hidden prompt, old or new marker", () => {
     expect(
       previewMessageText(
         {
@@ -195,7 +204,16 @@ describe("previewMessageText", () => {
         },
         labels,
       ),
-    ).toBe("Alerts, Triage");
+    ).toBe("");
+    expect(
+      previewMessageText(
+        {
+          role: "user",
+          blocks: [{ kind: "delivery" }, { kind: "text", text: 'Run routine "Alerts": ...' }],
+        },
+        labels,
+      ),
+    ).toBe("");
   });
 
   it("joins text, reading bot Markdown as plain text", () => {

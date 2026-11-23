@@ -3,6 +3,7 @@ import { MessageAuthorSchema, ReplyPreviewSchema } from "@rakazo/contracts";
 import { displayName } from "./display-name.js";
 import { plainTextFromMarkdown } from "./markdown-plain.js";
 import { messageReaction } from "./message-reactions.js";
+import { isDeliveryMessage } from "./message-visibility.js";
 
 type ReplyMetadata = {
   replyToMessageId?: string;
@@ -139,9 +140,8 @@ export function previewMessageText(
   message: { role: string; blocks: MessageBlock[] },
   labels: { photo: string; attachment: string; message: string },
 ): string {
-  // A delivery that started routines previews as their names, as its chat line does.
-  const inbound = message.blocks.find((block) => block.kind === "inbound_routine");
-  if (inbound?.kind === "inbound_routine") return inbound.routines.join(", ");
+  // A delivery's text is the bot's hidden prompt.
+  if (isDeliveryMessage(message.blocks)) return "";
   const text = message.blocks
     .map((block) => {
       if (block.kind === "channel_message") return block.text;

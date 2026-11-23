@@ -2612,6 +2612,11 @@ msgstr "Teclado do computador"
 msgid "Computer-use model"
 msgstr "Modelo para uso do computador"
 
+#: apps/mobile/app/(settings)/models.tsx
+#: apps/web/src/pages/ModelSettingsOverlay.tsx
+msgid "Status line model"
+msgstr "Modelo das frases de status"
+
 #: apps/web/src/pages/ModelSettingsOverlay.tsx
 msgid "Computer-use model…"
 msgstr "Modelo de uso do computador…"

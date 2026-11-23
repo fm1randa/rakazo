@@ -9,6 +9,7 @@ import {
   expandSkillReferencesInPrompt,
   MODEL_REQUIRED_SEND_ERROR,
   QUEUE_HOLDING_RUN_STATUSES,
+  runsBesideConversation,
 } from "@rakazo/core";
 import type { Prisma } from "@rakazo/db";
 import {
@@ -414,14 +415,17 @@ export function threadsRoutes(ctx: RouterContext) {
             clientNonce: input.clientNonce,
           });
           const author = await loadMessageAuthor(tx, context.actor.userId);
-          const active = await tx.run.findFirst({
-            where: {
-              threadId: target.threadId,
-              botId,
-              status: { in: [...QUEUE_HOLDING_RUN_STATUSES] },
-            },
-            select: { id: true, userId: true },
-          });
+          // A routine works beside the conversation, so the message never waits for one.
+          const active = (
+            await tx.run.findMany({
+              where: {
+                threadId: target.threadId,
+                botId,
+                status: { in: [...QUEUE_HOLDING_RUN_STATUSES] },
+              },
+              select: { id: true, userId: true, trigger: true },
+            })
+          ).find((run) => !runsBesideConversation(run.trigger));
           let run: { id: string } | null = null;
           // Another person's message waits for a run of its own, which acts with their
           // accounts, rather than joining the one under way.

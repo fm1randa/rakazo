@@ -22,6 +22,21 @@ export function narrationStatusLine(text: string): string {
 }
 
 /**
+ * A short status the bot wrote before a step, such as "Checking availability": one
+ * line that fits the working line and does not end like a sentence. It is never posted as an
+ * interim message.
+ */
+export function isStatusNote(text: string): boolean {
+  const line = text.trim();
+  return (
+    line.length > 0 &&
+    line.length <= NARRATION_STATUS_MAX_LENGTH &&
+    !line.includes("\n") &&
+    !/[.!?:;]$/.test(line)
+  );
+}
+
+/**
  * How a message the person sends while the bot works reaches the model: it knows the message
  * came mid-task. The answer goes through message_user, because a plain-text answer ends the
  * turn and the task with it; without that tool it is only asked to take the message into account.
@@ -37,6 +52,8 @@ const MID_TASK_SOURCES = {
   member: "another member of this chat",
   messaging: "a connected chat",
   webhook: "a webhook",
+  routine:
+    "one of your routines, which just finished in the background (this is its result, not a message from the user; mention it only if it matters to them)",
 } as const;
 
 /** A message from anyone else arrives labelled with where it came from, with no call to reply. */
@@ -68,6 +85,15 @@ export function midTurnProgressBudgetAllows(publishedCount: number, turnAgeMs: n
 /** Whether the run has posted every durable interim message it may, however long it runs. */
 export function midTurnProgressBudgetUsed(publishedCount: number): boolean {
   return publishedCount >= MID_TURN_PROGRESS_MAX_PER_RUN;
+}
+
+/**
+ * `RAKAZO_OPENING_ACKNOWLEDGEMENT=1` turns on live narration in chat mode: the bot opens a
+ * tool-using turn with one sentence on what it is about to do, posted at once, and labels each
+ * later step with a short status shown only as the working line.
+ */
+export function openingAcknowledgementEnabled(): boolean {
+  return process.env.RAKAZO_OPENING_ACKNOWLEDGEMENT?.trim() === "1";
 }
 
 /**

@@ -4,12 +4,14 @@ import type { MessageBlock, RunStatus } from "@rakazo/contracts";
 import { disabledBuiltinToolSet } from "@rakazo/contracts";
 import {
   BACKGROUND_HELPER_TRIGGER,
+  BESIDE_CONVERSATION_TRIGGERS,
   botMessageAllowsSilence,
   expandSkillReferencesInPrompt,
   formatSkillRunPrompt,
   formatSkillsCatalogInstruction,
   inboundDeliveryTrusted,
   isCallClientNonce,
+  isConversationalRun,
   isMessagingChannelRun,
   isOwnerStartedRun,
   isTerminal,
@@ -20,6 +22,9 @@ import {
   promptInvokesSkill,
   redactSecrets,
   renderBotDirectory,
+  historyBesideConversation,
+  runsBesideConversation,
+  TERMINAL_RUN_STATUSES,
   userTurnMessageForRun,
 } from "@rakazo/core";
 import type { ThreadEvents } from "@rakazo/db";
@@ -167,10 +172,15 @@ import { createReplyState } from "./run-progress.js";
 import {
   DELEGATED_EMPTY_NOTICE,
   GROUP_UNADDRESSED_REPLY_GUIDANCE,
+  messageBlocksText,
   runAllowsSilentEmpty,
+  runPromotesMidTurnNarration,
   runReplyGuidance,
   runReplyMode,
 } from "./run-replies.js";
+import { startStatusLines } from "./run-status-lines.js";
+import { createStatusLineWriter } from "./status-lines.js";
+import { openingAcknowledgementEnabled } from "./user-progress.js";
 import {
   notifyRoutineRetryAttemptsExhausted,
   retryRoutineRun,
@@ -336,6 +346,9 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
       // A background helper never uses the computer, so it neither waits for a switch nor holds
       // the bot's next turn.
       const backgroundHelper = run.trigger === BACKGROUND_HELPER_TRIGGER;
+      // A routine works beside the conversation: no exclusive computer turn and no screen, so the
+      // bot can answer its person while it runs.
+      const besideConversation = runsBesideConversation(run.trigger);
       if (leaseTarget.computerSwitching && !backgroundHelper) {
         await requeueComputerRun(deps, runId, workerId, fence, resumeCheckpoint, heldForTakeover);
         return;
@@ -370,8 +383,14 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
               botId: run.botId,
               workerId,
               runFence: fence,
+              ...(besideConversation ? { beside: { createdAt: run.createdAt } } : {}),
             });
-        if (!computerLease && !backgroundHelper && leaseTarget.computer?.scope === "dedicated") {
+        if (
+          !computerLease &&
+          !backgroundHelper &&
+          !besideConversation &&
+          leaseTarget.computer?.scope === "dedicated"
+        ) {
           computerLease = await acquireDedicatedScreenLeaseFence(deps.prisma, {
             computerId: leaseTarget.computerId,
             runId,
@@ -399,7 +418,8 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           fence,
           resumeCheckpoint,
           heldForTakeover,
-          Boolean(heldByAnotherRun),
+          // Work beside the conversation never waits for the conversation's lease to end.
+          Boolean(heldByAnotherRun) && !besideConversation,
         );
         return;
       }
@@ -553,7 +573,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
         const [
           bot,
           thread,
-          messages,
+          loadedMessages,
           peerMessage,
           task,
           storedConnections,
@@ -612,6 +632,13 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           loadRunLoginRedactions(deps.prisma, deps.secretStore, run, run.id),
           loadRunCodeRedactions(deps.prisma, deps.secretStore, run, run.id),
         ]);
+        const messages = besideConversation
+          ? historyBesideConversation(
+              loadedMessages,
+              run,
+              await openConversationFromSeq(deps.prisma, run, loadedMessages),
+            )
+          : loadedMessages;
         // Team chat reaches people besides the owner, so their runs get a group channel's limits.
         const teamChatConversationId =
           run.trigger === "messaging" ? thread.externalConversationId : null;
@@ -789,6 +816,50 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           run.sourceMessageId,
         );
         const turnBlocks = currentTurnMessage?.blocks;
+        // A status model, when the member chose one, writes the working line's statuses. It
+        // starts now, so its opening statuses are ready while the rest of the run sets up.
+        const statusRequestText = turnBlocks ? messageBlocksText(turnBlocks).trim() : "";
+        const statusLinesSetup =
+          openingAcknowledgementEnabled() &&
+          runPromotesMidTurnNarration(run.trigger) &&
+          isConversationalRun(run.trigger) &&
+          !runAllowsSilentEmpty(run.trigger)
+            ? createStatusLineWriter(
+                deps,
+                {
+                  runId,
+                  spaceId: run.spaceId,
+                  userId: run.userId,
+                  botId: bot.id,
+                  threadId: thread.id,
+                },
+                runSecrets,
+              )
+            : Promise.resolve(undefined);
+        const statusOpening = statusLinesSetup.then(
+          (writer) => writer?.opening(statusRequestText, context.signal) ?? [],
+        );
+        // Shown as soon as they are ready, not once the run has finished setting up.
+        let statusHeld = () => false;
+        const statusLive = await statusLinesSetup.then((writer) =>
+          writer
+            ? startStatusLines({
+                writer: statusLinesSetup,
+                request: statusRequestText,
+                opening: statusOpening,
+                held: () => statusHeld(),
+                show: (text) =>
+                  deps.events.append({
+                    spaceId: run.spaceId,
+                    threadId: thread.id,
+                    botId: bot.id,
+                    type: "thread.progress",
+                    runId,
+                    payload: { text, activity: true },
+                  }),
+              })
+            : undefined,
+        );
         // A run owns its source message and steering bound to it, including waiting-input
         // replies. message.runId alone is display linkage: a send during background work
         // points at that run but waits for its continuation. Read independently of history.
@@ -1227,9 +1298,13 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           deps.runtime.describe().capabilities.scripted ||
           modelSeesImages ||
           Boolean(computerModel || checkpointModelResolver);
-        const graphicalToolsAllowed = graphical && acceptsImages && !heldForTakeover;
+        const graphicalToolsAllowed =
+          graphical && acceptsImages && !heldForTakeover && !besideConversation;
         const pageBrowserAllowed =
-          graphical && browser.describe().capabilities.page && !heldForTakeover;
+          graphical &&
+          browser.describe().capabilities.page &&
+          !heldForTakeover &&
+          !besideConversation;
         const disabledBuiltinTools = disabledBuiltinToolSet(bot.disabledBuiltinTools);
         const replyMode = runReplyMode(run.trigger, bot.replyMode, disabledBuiltinTools);
         const emailName = deps.inboundEmailDomain
@@ -1449,6 +1524,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
         };
 
         const ctx: RunContext = {
+          statusLive,
           deps,
           providers: { web, mediaGeneration, paidServices, browser, cloudAgent },
           run,
@@ -1521,6 +1597,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           settleRunningHelpers: settleHelpers,
           stopHeartbeatAfterCompletion,
         };
+        statusHeld = () => ctx.state.reply.narrationStatusShowing;
         const pluginLine =
           connectedPlugins.length > 0
             ? `Connected plugins: ${connectedPlugins.map((row) => `${row.displayName} (${row.connectorId}:${row.provider})`).join(", ")}. Prefer those plugin tools over the computer browser or web search when reading app data (repos, releases, mail, calendar, and similar).`
@@ -2086,4 +2163,30 @@ async function cancelRunOfFormerMember(
   await deps.events.notify(run.threadId, cancelled.seq).catch(() => undefined);
   if (cancelled.continuationId) await deps.jobs.enqueue(runContinueJob(cancelled.continuationId));
   return true;
+}
+
+/**
+ * Seq of the first message the bot's conversation is still answering in this thread: the source
+ * of a conversation turn not finished yet, or a message still waiting for its own turn.
+ */
+async function openConversationFromSeq(
+  prisma: ExecutorDeps["prisma"],
+  run: { id: string; threadId: string; botId: string },
+  messages: { id: string; seq: number; steeringMessages: unknown[] }[],
+): Promise<number | null> {
+  const openRuns = await prisma.run.findMany({
+    where: {
+      threadId: run.threadId,
+      botId: run.botId,
+      id: { not: run.id },
+      status: { notIn: [...TERMINAL_RUN_STATUSES] },
+      trigger: { notIn: [...BESIDE_CONVERSATION_TRIGGERS, BACKGROUND_HELPER_TRIGGER] },
+    },
+    select: { sourceMessage: { select: { seq: true } } },
+  });
+  const seqs = [
+    ...openRuns.flatMap((open) => (open.sourceMessage ? [open.sourceMessage.seq] : [])),
+    ...messages.filter((message) => message.steeringMessages.length > 0).map((m) => m.seq),
+  ];
+  return seqs.length > 0 ? Math.min(...seqs) : null;
 }

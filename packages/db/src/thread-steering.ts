@@ -4,6 +4,7 @@ import {
   isConversationalRun,
   messagingChannelId,
   QUEUE_HOLDING_RUN_STATUSES,
+  ROUTINE_RESULT_STEERING_ORIGIN,
   STEERING_CONTINUATION_PROMPT,
 } from "@rakazo/core";
 import type { Prisma, PrismaClient } from "./client.js";
@@ -26,9 +27,9 @@ export interface ClaimedSteeringMessage {
   blocks: MessageBlock[];
   /**
    * Who sent it: the run's own person (in the app or a connected chat), another member of the
-   * chat, someone else in a connected chat, or a webhook.
+   * chat, someone else in a connected chat, a webhook, or one of the bot's routines finishing.
    */
-  origin: "user" | "member" | "messaging" | "webhook";
+  origin: "user" | "member" | "messaging" | "webhook" | "routine";
 }
 
 export async function claimSteering(
@@ -152,13 +153,15 @@ async function claimSteeringOnce(
       text: blocksToAgentHistoryText(item.message.blocks as MessageBlock[]),
       blocks: item.message.blocks as MessageBlock[],
       origin:
-        item.originTrigger === "webhook"
-          ? ("webhook" as const)
-          : sentByRunPerson(item)
-            ? ("user" as const)
-            : item.originTrigger === "messaging"
-              ? ("messaging" as const)
-              : ("member" as const),
+        item.originTrigger === ROUTINE_RESULT_STEERING_ORIGIN
+          ? ("routine" as const)
+          : item.originTrigger === "webhook"
+            ? ("webhook" as const)
+            : sentByRunPerson(item)
+              ? ("user" as const)
+              : item.originTrigger === "messaging"
+                ? ("messaging" as const)
+                : ("member" as const),
     }));
   }, THREAD_LOCK_TRANSACTION_OPTIONS);
 }
@@ -226,6 +229,8 @@ export async function createPendingSteeringRun(
       botId: input.botId,
       runId: null,
       message: { threadId: input.threadId },
+      // A routine result is context for a turn already running, never a reason to start one.
+      OR: [{ originTrigger: null }, { originTrigger: { not: ROUTINE_RESULT_STEERING_ORIGIN } }],
     },
     include: { message: { select: { id: true, blocks: true, seq: true } } },
     orderBy: [{ message: { seq: "asc" } }, { id: "asc" }],

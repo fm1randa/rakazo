@@ -18,6 +18,7 @@ import type { ComputerSize, ComputerUpdate } from "@rakazo/contracts";
 import {
   ACTIVE_RUN_STATUSES,
   abortableDelay,
+  BESIDE_CONVERSATION_TRIGGERS,
   COMPUTER_USING_RUNS,
   isRetryableError,
   parseScreenLeaseId,
@@ -880,11 +881,23 @@ export async function acquireComputerExecutionLease(
     computerId: string;
     runId: string;
     botId: string;
+    /**
+     * Work beside the conversation (a routine or webhook turn) takes no lease: it checks only what
+     * a lease would refuse, and waits for such a turn of the same bot that started first, so they
+     * still run one at a time.
+     */
+    beside?: { createdAt: Date };
   } & ({ workerId: string; runFence: number } | { workerId?: never; runFence?: never }),
 ): Promise<ComputerExecutionLease | null> {
   const computer = await prisma.computer.findUniqueOrThrow({ where: { id: input.computerId } });
   if (computer.maintenanceId && computer.maintenanceId !== input.runId)
     throw new ComputerBusyError();
+  if (input.beside) {
+    if (isLiveSuspending(computer)) throw new ComputerBusyError();
+    if (await besideWorkStartedFirst(prisma, input, input.beside.createdAt))
+      throw new ComputerBusyError();
+    return null;
+  }
   if (computer.scope !== "team") return null;
   if (isLiveSuspending(computer)) throw new ComputerBusyError();
   return prisma.$transaction(async (tx) => {
@@ -937,6 +950,25 @@ export async function acquireComputerExecutionLease(
       throw error;
     }
   });
+}
+
+async function besideWorkStartedFirst(
+  prisma: PrismaClient,
+  input: { botId: string; runId: string },
+  createdAt: Date,
+): Promise<boolean> {
+  const ahead = await prisma.run.findFirst({
+    where: {
+      botId: input.botId,
+      trigger: { in: [...BESIDE_CONVERSATION_TRIGGERS] },
+      status: "running",
+      id: { not: input.runId },
+      leaseExpiresAt: { gt: new Date() },
+      OR: [{ createdAt: { lt: createdAt } }, { createdAt, id: { lt: input.runId } }],
+    },
+    select: { id: true },
+  });
+  return ahead !== null;
 }
 
 async function validateAcquiredComputerLease(

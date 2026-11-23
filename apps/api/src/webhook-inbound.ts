@@ -294,8 +294,6 @@ export async function deliverWebhookEvent(
       thinkingLevel: string | null;
     }>;
     source: InboundSource;
-    /** The delivery's own event name, shown beside the routines it started. */
-    event?: string;
     idempotencyKey?: string;
     /** Messaging wakes share the live chat thread; keep a separate webhook run. */
     allowParallelRun?: boolean;
@@ -328,16 +326,7 @@ export async function deliverWebhookEvent(
     botId: target.bot.id,
     userId: target.bot.userId,
     blocks: [
-      ...(input.routines.length > 0
-        ? [
-            {
-              kind: "inbound_routine" as const,
-              source: input.source,
-              routines: input.routines.map((routine) => routine.name),
-              ...(input.event ? { event: input.event } : {}),
-            },
-          ]
-        : []),
+      { kind: "delivery" },
       { kind: "text", text: promptText },
       ...(input.artifacts ?? []).map(messageBlockForArtifact),
     ],

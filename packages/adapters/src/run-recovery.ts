@@ -1,4 +1,4 @@
-import { BACKGROUND_HELPER_TRIGGER, isTerminal } from "@rakazo/core";
+import { BACKGROUND_HELPER_TRIGGER, isTerminal, runsBesideConversation } from "@rakazo/core";
 import type { PrismaClient } from "@rakazo/db";
 import { expireComputerExecutionLeases } from "@rakazo/db";
 import { EXECUTION_LEASE_MS } from "./computer-lifecycle.js";
@@ -37,7 +37,8 @@ export async function findRunRecoveryBlockers(
   const blockers = new Map<string, string>();
   for (const run of runs) {
     // A background helper never takes the computer, so the bot's own turn does not hold it.
-    if (run.trigger === BACKGROUND_HELPER_TRIGGER) continue;
+    // Nor does a routine, which works beside the conversation.
+    if (run.trigger === BACKGROUND_HELPER_TRIGGER || runsBesideConversation(run.trigger)) continue;
     const lease = leases.find(
       (lease) =>
         lease.botId === run.botId &&

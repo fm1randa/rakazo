@@ -138,6 +138,46 @@ export function runReadsThreadHistory(trigger: string | null | undefined): boole
   return trigger !== "created" && trigger !== "routine";
 }
 
+/**
+ * Routine and webhook turns work beside the bot's conversation: a person's message never waits
+ * behind one, a delivery never waits behind the conversation, and they take neither the bot's
+ * exclusive computer turn nor its screen. These turns of one bot still run one at a time.
+ */
+export const BESIDE_CONVERSATION_TRIGGERS = ["routine", "webhook"] as const;
+const BESIDE_CONVERSATION_TRIGGER_SET = new Set<string>(BESIDE_CONVERSATION_TRIGGERS);
+
+export function runsBesideConversation(trigger: string | null | undefined): boolean {
+  return BESIDE_CONVERSATION_TRIGGER_SET.has(trigger ?? "");
+}
+
+/** Statuses of a run that has finished. */
+export const TERMINAL_RUN_STATUSES: readonly RunStatus[] = TERMINAL;
+
+/**
+ * History of a turn beside the conversation. From the first message the conversation is still
+ * answering, it keeps only this run's delivery and its own messages, so it never answers the
+ * person a second time. `openConversationFromSeq` is that first message's seq, or null when the
+ * conversation has nothing open.
+ */
+export function historyBesideConversation<
+  T extends { id: string; seq: number; runId?: string | null },
+>(
+  messages: T[],
+  run: { id: string; sourceMessageId?: string | null },
+  openConversationFromSeq: number | null,
+): T[] {
+  if (openConversationFromSeq == null) return messages;
+  return messages.filter(
+    (message) =>
+      message.seq < openConversationFromSeq ||
+      message.runId === run.id ||
+      message.id === run.sourceMessageId,
+  );
+}
+
+/** Origin of a routine's final message handed to a turn already talking with its person. */
+export const ROUTINE_RESULT_STEERING_ORIGIN = "routine";
+
 /** Whether a run's turn is part of the thread's conversation and may take user steering. */
 export function isConversationalRun(trigger: string | null | undefined): boolean {
   return !NON_CONVERSATIONAL_RUN_TRIGGERS.has(trigger ?? "");

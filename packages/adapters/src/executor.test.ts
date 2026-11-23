@@ -1279,6 +1279,7 @@ function pinnedRoutineRunPrisma(modelId: string) {
     user: { findUnique: vi.fn(async () => null) },
     spaceMember: { findUnique: vi.fn(async () => ({ id: "member-1" })) },
     run: {
+      findMany: vi.fn(async () => []),
       findUnique: vi.fn(async () => run),
       findUniqueOrThrow: vi.fn(async () => ({ status: "leased", startedAt: null })),
       updateMany: vi.fn(async () => ({ count: 1 })),
@@ -2829,6 +2830,7 @@ description: Prepare standup notes
       user: { findUnique: vi.fn(async () => null) },
       spaceMember: { findUnique: vi.fn(async () => ({ id: "member-1" })) },
       run: {
+        findMany: vi.fn(async () => []),
         findUnique: vi.fn(async () => ({
           id: "run-1",
           botId: "bot-1",
@@ -2887,6 +2889,7 @@ description: Prepare standup notes
       user: { findUnique: vi.fn(async () => null) },
       spaceMember: { findUnique: vi.fn(async () => ({ id: "member-1" })) },
       run: {
+        findMany: vi.fn(async () => []),
         findUnique: vi.fn(async () => ({
           id: "run-1",
           botId: "bot-1",
@@ -2973,6 +2976,7 @@ description: Prepare standup notes
       user: { findUnique: vi.fn(async () => null) },
       spaceMember: { findUnique: vi.fn(async () => ({ id: "member-1" })) },
       run: {
+        findMany: vi.fn(async () => []),
         findUnique: vi.fn(async () => ({
           id: "run-1",
           botId: "bot-1",
@@ -3013,6 +3017,7 @@ description: Prepare standup notes
     const enqueue = vi.fn(async () => undefined);
     const prisma = {
       run: {
+        findMany: vi.fn(async () => []),
         findUnique: vi.fn(async () => ({
           id: "run-1",
           botId: "bot-1",
@@ -3075,6 +3080,7 @@ description: Prepare standup notes
       user: { findUnique: vi.fn(async () => null) },
       spaceMember: { findUnique: vi.fn(async () => ({ id: "member-1" })) },
       run: {
+        findMany: vi.fn(async () => []),
         findUnique: vi.fn(async () => ({
           id: "run-1",
           botId: "bot-1",
@@ -3137,6 +3143,7 @@ description: Prepare standup notes
       user: { findUnique: vi.fn(async () => null) },
       spaceMember: { findUnique: vi.fn(async () => ({ id: "member-1" })) },
       run: {
+        findMany: vi.fn(async () => []),
         findUnique: vi.fn(async () => ({
           id: "run-1",
           botId: "bot-1",
@@ -3222,6 +3229,7 @@ description: Prepare standup notes
         user: { findUnique: vi.fn(async () => null) },
         spaceMember: { findUnique: vi.fn(async () => ({ id: "member-1" })) },
         run: {
+          findMany: vi.fn(async () => []),
           findUnique: vi.fn(async () => run),
           findUniqueOrThrow: vi.fn(async () => ({ status: "leased", startedAt: null })),
           updateMany: vi.fn(async () => ({ count: 1 })),
@@ -3345,6 +3353,7 @@ description: Prepare standup notes
       user: { findUnique: vi.fn(async () => null) },
       spaceMember: { findUnique: vi.fn(async () => ({ id: "member-1" })) },
       run: {
+        findMany: vi.fn(async () => []),
         findUnique: vi.fn(async () => run),
         findUniqueOrThrow: vi.fn(async () => ({ status: "leased", startedAt: null })),
         updateMany: vi.fn(async () => ({ count: 1 })),
@@ -3470,6 +3479,7 @@ description: Prepare standup notes
         })),
       },
       run: {
+        findMany: vi.fn(async () => []),
         findUnique: vi.fn(async () => run),
         findUniqueOrThrow: vi.fn(async () => ({ status: "leased", startedAt: null })),
         updateMany: vi.fn(async () => ({ count: 1 })),

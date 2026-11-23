@@ -482,7 +482,7 @@ export interface AgentSteeringMessage {
    * Who sent it. Only the run's own person ("user") is framed as a message to answer; anything
    * else, or no origin, is passed on as a neutral note.
    */
-  origin?: "user" | "member" | "messaging" | "webhook";
+  origin?: "user" | "member" | "messaging" | "webhook" | "routine";
   /** Persisted history text before attachment paths are appended. */
   historyText?: string;
   images?: AgentInputImage[];
@@ -720,6 +720,8 @@ export type AgentRuntimeEvent =
       text: string;
       /** Provider-generated tool status rather than assistant-authored narration. */
       activity?: true;
+      /** The status line is the one the model gave the call, not the tool's technical one. */
+      modelStatus?: true;
     }
   | {
       type: "tool";
@@ -730,6 +732,8 @@ export type AgentRuntimeEvent =
       viaUseTool?: boolean;
       /** Which model response made the call; calls from one response share it. */
       response?: number;
+      /** The short status the model gave the call, shown while it runs. */
+      status?: string;
     }
   | {
       type: "ask";

@@ -25,6 +25,7 @@ import {
   QUEUE_HOLDING_RUN_STATUSES,
   resolveGroupTargetBotIds,
   runReadsThreadHistory,
+  runsBesideConversation,
 } from "@rakazo/core";
 import { deriveMessageQuote, messageReplyPreview } from "@rakazo/core/message-quote";
 import type { Prisma, PrismaClient, ThreadEvents } from "@rakazo/db";
@@ -718,12 +719,14 @@ export async function sendThreadMessage(
           });
           return { message, runs: answered, routineRuns, eventSeq: event.seq };
         }
+        // A routine works beside the conversation: the message gets a turn of its own now.
         const holdingRuns = stopping
           ? activeRuns
           : activeRuns.filter(
               (run) =>
                 QUEUE_HOLDING_RUN_STATUSES.some((status) => status === run.status) &&
-                !messageBypassesTakeoverWait(run),
+                !messageBypassesTakeoverWait(run) &&
+                !runsBesideConversation(run.trigger),
             );
         const active =
           holdingRuns.find((run) => steersMessageFrom(run, actor)) ??
@@ -968,7 +971,12 @@ export async function sendThreadMessage(
           }
           continue;
         }
-        if (!STEERABLE_RUN_STATUSES.has(run.status) || messageBypassesTakeoverWait(run)) continue;
+        if (
+          !STEERABLE_RUN_STATUSES.has(run.status) ||
+          messageBypassesTakeoverWait(run) ||
+          runsBesideConversation(run.trigger)
+        )
+          continue;
         const current = activeByBotId.get(run.botId);
         if (!current || rank(run) > rank(current)) activeByBotId.set(run.botId, run);
       }

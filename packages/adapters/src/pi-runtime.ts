@@ -84,6 +84,7 @@ import {
   createGate,
   createQueue,
   describeToolActivity,
+  stepStatusOf,
   redactAskUserDetailInMessage,
   releaseToolCallBudget,
   toAgentTools,
@@ -833,12 +834,18 @@ export class PiAgentRuntime implements AgentRuntime {
             // Live activity feedback: without this the thread shows a bare
             // "working…" for the whole tool call with nothing actionable.
             toolActivityShowing = true;
+            const status = stepStatusOf(event.args);
+            if (status) {
+              host.stepStatuses ??= new Map();
+              host.stepStatuses.set(event.toolCallId, status);
+            }
             queue.push({
               type: "progress",
               text: describeToolActivity(event.toolName, event.args, (name) =>
                 toolsByAgentName.get(name),
               ),
               activity: true,
+              ...(status ? { modelStatus: true as const } : {}),
             });
           }
           if (event.type === "message_start" && event.message.role === "assistant") {

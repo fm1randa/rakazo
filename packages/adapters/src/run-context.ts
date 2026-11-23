@@ -1,3 +1,4 @@
+import type { LiveStatusLines } from "./run-status-lines.js";
 import type {
   AdapterContext,
   BrowserProvider,
@@ -274,6 +275,8 @@ export interface RunProviders {
  * the turn loop instead of closing over dozens of locals.
  */
 export interface RunContext {
+  /** The status model's live statuses for this run, when the member chose a status model. */
+  statusLive?: LiveStatusLines;
   deps: ExecutorDeps;
   providers: RunProviders;
   run: Run;
